@@ -1,0 +1,1487 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Escala — Operações de Pátio</title>
+<meta name="theme-color" content="#0F1720">
+<meta name="description" content="Escala de equipe de Operações de Pátio">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Escala Pátio">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #0F1720;
+    --surface: #161F2A;
+    --surface-2: #1D2836;
+    --surface-3: #253345;
+    --border: #2B3A4C;
+    --text: #EDF1F5;
+    --text-dim: #8B98A5;
+    --text-faint: #5C6B7A;
+    --accent: #FF6B35;
+    --accent-dim: #b84e26;
+
+    --c-porao: #5B7FFF;
+    --c-limpeza: #2DD4BF;
+    --c-operador: #FBBF24;
+    --c-restituicao: #A78BFA;
+    --c-lider: #FF6B35;
+
+    --c-disponivel: #34D399;
+    --c-folga: #64748B;
+    --c-falta: #F87171;
+  }
+
+  *{ box-sizing: border-box; margin:0; padding:0; }
+
+  body{
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+    padding-bottom: 40px;
+  }
+
+  h1,h2,h3, .num, .display{
+    font-family: 'Space Grotesk', sans-serif;
+  }
+
+  /* Runway texture strip */
+  .runway-strip{
+    height: 4px;
+    background: repeating-linear-gradient(90deg, var(--accent) 0px, var(--accent) 22px, transparent 22px, transparent 40px);
+    opacity: 0.85;
+  }
+
+  header{
+    padding: 20px 20px 16px;
+    max-width: 960px;
+    margin: 0 auto;
+  }
+
+  header .eyebrow{
+    color: var(--accent);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    margin-bottom: 4px;
+  }
+
+  header h1{
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+
+  header p.sub{
+    color: var(--text-dim);
+    font-size: 14px;
+    margin-top: 4px;
+  }
+
+  nav.tabs{
+    max-width: 960px;
+    margin: 8px auto 0;
+    padding: 0 20px;
+    display: flex;
+    gap: 6px;
+  }
+
+  nav.tabs button{
+    flex: 1;
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 12px 8px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: color 0.15s ease, border-color 0.15s ease;
+  }
+
+  nav.tabs button.active{
+    color: var(--text);
+    border-bottom-color: var(--accent);
+  }
+
+  nav.tabs button:hover:not(.active){ color: var(--text); }
+
+  main{
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 20px;
+  }
+
+  .view{ display: none; }
+  .view.active{ display: block; }
+
+  /* --- Calendar --- */
+  .month-bar{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 18px;
+  }
+
+  .month-bar h2{
+    font-size: 20px;
+    font-weight: 600;
+    text-transform: capitalize;
+  }
+
+  .month-nav{ display: flex; gap: 8px; }
+
+  .icon-btn{
+    width: 36px; height: 36px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+  .icon-btn:hover{ background: var(--surface-2); border-color: var(--accent); }
+
+  .legend{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 16px;
+    margin-bottom: 18px;
+    padding: 12px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+  }
+  .legend-item{
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12.5px;
+    color: var(--text-dim);
+  }
+  .dot{
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .cal-grid{
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 6px;
+  }
+
+  .cal-dow{
+    text-align: center;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-faint);
+    padding-bottom: 6px;
+    letter-spacing: 0.03em;
+  }
+
+  .cal-day{
+    aspect-ratio: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 6px 5px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: border-color 0.15s ease, transform 0.1s ease;
+    position: relative;
+  }
+  .cal-day:hover{ border-color: var(--accent); }
+  .cal-day:active{ transform: scale(0.97); }
+  .cal-day.empty{ background: none; border: none; cursor: default; }
+  .cal-day.empty:hover{ border: none; }
+  .cal-day.today{ border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .cal-day.busy-day{ border-color: rgba(255,107,53,0.5); }
+
+  .cal-day .top-row{
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+  }
+
+  .cal-day .flights-row{
+    display: flex;
+    gap: 2px;
+    align-items: center;
+  }
+  .cal-day .flight-pip{
+    width: 5px; height: 5px;
+    border-radius: 50%;
+  }
+  .cal-day .flight-count{
+    font-size: 10px;
+    font-weight: 700;
+    font-family: 'Space Grotesk', sans-serif;
+    color: var(--accent);
+    margin-left: 1px;
+  }
+
+  .cal-day .daynum{
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .cal-day.today .daynum{ color: var(--accent); }
+
+  .cal-day .bottom-row{
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+  }
+
+  .cal-day .dots{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px;
+    max-width: 70%;
+  }
+  .cal-day .dots .dot{ width: 6px; height: 6px; }
+
+  .cal-day .count-badge{
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--c-disponivel);
+    font-family: 'Space Grotesk', sans-serif;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+  .cal-day .count-badge.zero{ color: var(--text-faint); }
+
+  .cal-day .falta-flag{
+    position: absolute;
+    top: 4px; right: 4px;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--c-falta);
+  }
+
+  @media (max-width: 480px){
+    .cal-day .daynum{ font-size: 11px; }
+    .cal-grid{ gap: 4px; }
+  }
+
+  /* --- Day panel (sheet) --- */
+  .overlay{
+    position: fixed; inset: 0;
+    background: rgba(6,10,15,0.6);
+    backdrop-filter: blur(2px);
+    display: none;
+    align-items: flex-end;
+    justify-content: center;
+    z-index: 50;
+  }
+  .overlay.active{ display: flex; }
+
+  @media (min-width: 640px){
+    .overlay{ align-items: center; }
+  }
+
+  .sheet{
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px 20px 0 0;
+    width: 100%;
+    max-width: 560px;
+    max-height: 85vh;
+    overflow-y: auto;
+    padding: 22px 20px 28px;
+    animation: slideUp 0.22s ease;
+  }
+  @media (min-width: 640px){
+    .sheet{ border-radius: 20px; max-height: 80vh; }
+  }
+  @keyframes slideUp{
+    from{ transform: translateY(24px); opacity: 0; }
+    to{ transform: translateY(0); opacity: 1; }
+  }
+
+  .sheet-head{
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 18px;
+  }
+  .sheet-head h3{ font-size: 19px; font-weight: 700; text-transform: capitalize; }
+  .sheet-head p{ color: var(--text-dim); font-size: 13px; margin-top: 2px; }
+
+  .close-btn{
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 15px;
+    flex-shrink: 0;
+  }
+  .close-btn:hover{ color: var(--text); }
+
+  .section-label{
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-faint);
+    margin: 18px 0 8px;
+    letter-spacing: 0.02em;
+  }
+  .section-label:first-child{ margin-top: 0; }
+
+  .person-row{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    background: var(--surface-2);
+    border-radius: 10px;
+    margin-bottom: 6px;
+    border-left: 3px solid var(--c-disponivel);
+  }
+  .person-row.folga{ border-left-color: var(--c-folga); opacity: 0.6; }
+  .person-row.falta{ border-left-color: var(--c-falta); }
+
+  .person-info{ display: flex; flex-direction: column; gap: 3px; }
+  .person-name{ font-size: 14px; font-weight: 600; }
+  .fn-chips{ display: flex; gap: 5px; flex-wrap: wrap; }
+  .fn-chip{
+    font-size: 10.5px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 6px;
+    color: #0F1720;
+  }
+
+  .status-tag{
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-dim);
+  }
+
+  .falta-toggle{
+    background: var(--surface-3);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-size: 11.5px;
+    font-weight: 600;
+    padding: 6px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .falta-toggle:hover{ border-color: var(--c-falta); color: var(--c-falta); }
+  .falta-toggle.active{
+    background: rgba(248,113,113,0.15);
+    border-color: var(--c-falta);
+    color: var(--c-falta);
+  }
+
+  .empty-note{
+    color: var(--text-faint);
+    font-size: 13px;
+    padding: 14px 0;
+    text-align: center;
+  }
+
+  /* --- Equipe view --- */
+  .btn-primary{
+    background: var(--accent);
+    color: #0F1720;
+    border: none;
+    font-family: 'Inter', sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    padding: 12px 18px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  .btn-primary:hover{ background: #ff7d4d; }
+
+  .btn-secondary{
+    background: var(--surface-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 13.5px;
+    padding: 10px 16px;
+    border-radius: 10px;
+    cursor: pointer;
+  }
+  .btn-secondary:hover{ border-color: var(--accent); }
+
+  .team-head{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 18px;
+  }
+  .team-head h2{ font-size: 20px; font-weight: 600; }
+
+  .team-list{ display: flex; flex-direction: column; gap: 8px; }
+
+  .team-card{
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .team-card .info{ display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .team-card .name{ font-size: 15px; font-weight: 600; }
+
+  .team-card .actions{ display: flex; gap: 6px; flex-shrink: 0; }
+
+  .icon-btn-sm{
+    width: 30px; height: 30px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--text-dim);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  .icon-btn-sm:hover{ border-color: var(--accent); color: var(--text); }
+
+  .empty-state{
+    text-align: center;
+    padding: 48px 20px;
+    color: var(--text-faint);
+  }
+  .empty-state p{ font-size: 14px; margin-top: 6px; }
+
+  /* --- Modal (add/edit person, off-days editor) --- */
+  .modal-overlay{
+    position: fixed; inset: 0;
+    background: rgba(6,10,15,0.65);
+    backdrop-filter: blur(2px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 60;
+    padding: 20px;
+  }
+  .modal-overlay.active{ display: flex; }
+
+  .modal{
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    width: 100%;
+    max-width: 480px;
+    max-height: 88vh;
+    overflow-y: auto;
+    padding: 24px;
+  }
+  .modal h3{ font-size: 18px; font-weight: 700; margin-bottom: 18px; }
+
+  .field{ margin-bottom: 16px; }
+  .field label{
+    display: block;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text-dim);
+    margin-bottom: 7px;
+  }
+  .field input[type="text"]{
+    width: 100%;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    padding: 11px 13px;
+    border-radius: 10px;
+    outline: none;
+  }
+  .field input[type="text"]:focus{ border-color: var(--accent); }
+
+  .fn-options{ display: flex; flex-direction: column; gap: 8px; }
+  .fn-option{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    cursor: pointer;
+  }
+  .fn-option.checked{ border-color: var(--fn-color, var(--accent)); background: var(--surface-3); }
+  .fn-option input{ accent-color: var(--accent); width: 16px; height: 16px; }
+  .fn-option .fn-dot{ width: 10px; height: 10px; border-radius: 3px; }
+  .fn-option span.lbl{ font-size: 14px; font-weight: 500; }
+
+  .modal-actions{
+    display: flex;
+    gap: 8px;
+    margin-top: 20px;
+  }
+  .modal-actions button{ flex: 1; }
+
+  .danger-link{
+    color: var(--c-falta);
+    background: none;
+    border: none;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 8px;
+    margin-top: 4px;
+  }
+
+  /* Off-days mini calendar inside modal */
+  .mini-cal-head{
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 10px;
+  }
+  .mini-cal-head span{ font-size: 14px; font-weight: 600; text-transform: capitalize; }
+  .mini-grid{
+    display: grid;
+    grid-template-columns: repeat(7,1fr);
+    gap: 4px;
+    margin-bottom: 10px;
+  }
+  .mini-dow{ text-align:center; font-size: 10px; color: var(--text-faint); padding-bottom: 3px; }
+  .mini-day{
+    aspect-ratio: 1;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px;
+    border-radius: 7px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    color: var(--text);
+  }
+  .mini-day.empty{ background: none; border: none; cursor: default; }
+  .mini-day.off{ background: rgba(100,116,139,0.35); border-color: var(--c-folga); color: var(--text-dim); text-decoration: line-through; }
+  .mini-hint{ font-size: 12px; color: var(--text-faint); margin-bottom: 14px; }
+
+  .toast{
+    position: fixed;
+    bottom: 20px; left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--surface-3);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 12px 20px;
+    border-radius: 10px;
+    font-size: 13.5px;
+    font-weight: 500;
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.25s ease;
+    z-index: 100;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  }
+  .toast.show{ opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  .share-note{
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-bottom: 20px;
+  }
+</style>
+</head>
+<body>
+
+<div class="runway-strip"></div>
+
+<header>
+  <div class="eyebrow">Operações de Pátio</div>
+  <h1>Escala da Equipe</h1>
+  <p class="sub">Porão · Limpeza · Operador de Equipamento · Restituição</p>
+</header>
+
+<nav class="tabs">
+  <button class="active" data-tab="calendario">Calendário</button>
+  <button data-tab="escala">Escala</button>
+  <button data-tab="voos">Voos</button>
+  <button data-tab="equipe">Equipe</button>
+</nav>
+
+<main>
+
+  <!-- CALENDAR VIEW -->
+  <div class="view active" id="view-calendario">
+    <div class="share-note" id="shareNote">
+      🔗 Esses dados ficam salvos na nuvem e são visíveis a qualquer pessoa que abrir este link.
+    </div>
+
+    <div class="month-bar">
+      <h2 id="monthLabel">—</h2>
+      <div class="month-nav">
+        <button class="icon-btn" id="prevMonth">‹</button>
+        <button class="icon-btn" id="todayBtn">•</button>
+        <button class="icon-btn" id="nextMonth">›</button>
+      </div>
+    </div>
+
+    <div class="legend" id="legend"></div>
+
+    <div class="cal-grid" id="calGrid"></div>
+  </div>
+
+  <!-- ESCALA VIEW -->
+  <div class="view" id="view-escala">
+    <div class="team-head">
+      <h2>Escala do mês</h2>
+    </div>
+    <p class="mini-hint" style="margin-bottom:16px;">Escolha um funcionário e marque as folgas dele no mês. Isso alimenta o calendário automaticamente.</p>
+    <div class="team-list" id="escalaList"></div>
+  </div>
+
+  <!-- VOOS VIEW -->
+  <div class="view" id="view-voos">
+    <div class="team-head">
+      <h2>Voos do mês</h2>
+      <button class="btn-primary" id="addAirlineBtn">+ Companhia</button>
+    </div>
+    <p class="mini-hint" style="margin-bottom:16px;">Marque os dias que cada companhia opera. Isso aparece automaticamente no calendário principal.</p>
+    <div class="team-list" id="voosList"></div>
+  </div>
+
+  <!-- EQUIPE VIEW -->
+  <div class="view" id="view-equipe">
+    <div class="team-head">
+      <h2>Equipe</h2>
+      <button class="btn-primary" id="addPersonBtn">+ Adicionar</button>
+    </div>
+    <div class="team-list" id="teamList"></div>
+  </div>
+
+</main>
+
+<!-- Day detail sheet -->
+<div class="overlay" id="dayOverlay">
+  <div class="sheet">
+    <div class="sheet-head">
+      <div>
+        <h3 id="sheetTitle">—</h3>
+        <p id="sheetSubtitle"></p>
+      </div>
+      <button class="close-btn" id="closeSheet">✕</button>
+    </div>
+    <div id="sheetBody"></div>
+  </div>
+</div>
+
+<!-- Add/Edit person modal -->
+<div class="modal-overlay" id="personModalOverlay">
+  <div class="modal">
+    <h3 id="personModalTitle">Adicionar pessoa</h3>
+    <div class="field">
+      <label>Nome</label>
+      <input type="text" id="personNameInput" placeholder="Nome completo">
+    </div>
+    <div class="field">
+      <label>Matrícula</label>
+      <input type="text" id="personRegInput" placeholder="Número de matrícula">
+    </div>
+    <div class="field">
+      <label>Funções (pode marcar mais de uma)</label>
+      <div class="fn-options" id="fnOptions"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="cancelPersonBtn">Cancelar</button>
+      <button class="btn-primary" id="savePersonBtn">Salvar</button>
+    </div>
+    <button class="danger-link" id="deletePersonBtn" style="display:none;">Remover pessoa</button>
+  </div>
+</div>
+
+<!-- Off-days editor modal -->
+<div class="modal-overlay" id="offDaysModalOverlay">
+  <div class="modal">
+    <h3 id="offDaysModalTitle">Editar folgas</h3>
+    <p class="mini-hint">Toque nos dias para marcar ou desmarcar como folga fixa.</p>
+    <div class="mini-cal-head">
+      <button class="icon-btn-sm" id="miniPrev">‹</button>
+      <span id="miniMonthLabel">—</span>
+      <button class="icon-btn-sm" id="miniNext">›</button>
+    </div>
+    <div class="mini-grid" id="miniDowRow"></div>
+    <div class="mini-grid" id="miniGrid"></div>
+    <div class="modal-actions">
+      <button class="btn-primary" id="closeOffDaysBtn" style="width:100%;">Concluído</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add airline modal -->
+<div class="modal-overlay" id="airlineModalOverlay">
+  <div class="modal">
+    <h3>Adicionar companhia</h3>
+    <div class="field">
+      <label>Selecione a companhia</label>
+      <div class="fn-options" id="airlineOptions"></div>
+    </div>
+    <div class="field" id="customAirlineField" style="display:none;">
+      <label>Nome da companhia</label>
+      <input type="text" id="airlineNameInput" placeholder="Digite o nome">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="cancelAirlineBtn">Cancelar</button>
+      <button class="btn-primary" id="saveAirlineBtn">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Flight-days editor modal -->
+<div class="modal-overlay" id="flightDaysModalOverlay">
+  <div class="modal">
+    <h3 id="flightDaysModalTitle">Dias de operação</h3>
+    <p class="mini-hint">Toque nos dias que essa companhia tem voo neste mês.</p>
+    <div class="mini-cal-head">
+      <button class="icon-btn-sm" id="flightMiniPrev">‹</button>
+      <span id="flightMiniMonthLabel">—</span>
+      <button class="icon-btn-sm" id="flightMiniNext">›</button>
+    </div>
+    <div class="mini-grid" id="flightMiniDowRow"></div>
+    <div class="mini-grid" id="flightMiniGrid"></div>
+    <div class="modal-actions">
+      <button class="btn-primary" id="closeFlightDaysBtn" style="width:100%;">Concluído</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Firebase (banco de dados na nuvem) -->
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
+
+<script>
+// ---------- Config ----------
+const FUNCTIONS = [
+  { id: 'porao', name: 'Porão', color: 'var(--c-porao)', hex: '#5B7FFF' },
+  { id: 'limpeza', name: 'Limpeza', color: 'var(--c-limpeza)', hex: '#2DD4BF' },
+  { id: 'operador', name: 'Operador de Equipamento', color: 'var(--c-operador)', hex: '#FBBF24' },
+  { id: 'restituicao', name: 'Restituição', color: 'var(--c-restituicao)', hex: '#A78BFA' },
+  { id: 'lider', name: 'Líder', color: 'var(--c-lider)', hex: '#FF6B35' },
+];
+const DOW = ['dom','seg','ter','qua','qui','sex','sáb'];
+const MONTHS = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+const DEFAULT_STATE = { people: [], offDays: {}, absences: {}, dayAssignments: {}, airlines: [], flightDays: {} };
+
+// ---------- State ----------
+let state = Object.assign({}, DEFAULT_STATE);
+const AIRLINE_COLORS = ['#3B82F6','#DC2626','#22C55E','#F59E0B','#8B5CF6','#EC4899','#14B8A6'];
+const AIRLINE_CATALOG = ['Azul','LATAM','Gol','Voepass','Itapemirim','Avianca Brasil','American Airlines','Copa Airlines','TAP Portugal','Outra'];
+let selectedAirlineName = null;
+let calYear, calMonth; // 0-indexed month
+let miniYear, miniMonth;
+let editingPersonId = null;
+let offDaysPersonId = null;
+let sheetDateStr = null;
+
+const todayObj = new Date();
+calYear = todayObj.getFullYear();
+calMonth = todayObj.getMonth();
+
+function fnById(id){ return FUNCTIONS.find(f => f.id === id); }
+function pickableFunctions(p){
+  // Líder is a wildcard: can act as any operational function on a given day
+  if((p.functions||[]).includes('lider')) return FUNCTIONS.map(f=>f.id);
+  return p.functions||[];
+}
+function pad(n){ return n < 10 ? '0'+n : ''+n; }
+function iso(y,m,d){ return `${y}-${pad(m+1)}-${pad(d)}`; }
+
+// ---------- Storage (Firebase Firestore) ----------
+// Um único documento guarda todo o estado do app, compartilhado por toda a equipe.
+// firebase-config.js (carregado antes deste script) define window.firebaseConfig.
+firebase.initializeApp(window.firebaseConfig);
+const db = firebase.firestore();
+const stateDocRef = db.collection('escala').doc('ops-data');
+
+let applyingRemoteState = false;
+let isFirstSnapshot = true;
+
+function loadState(){
+  stateDocRef.onSnapshot(
+    (doc) => {
+      applyingRemoteState = true;
+      if(doc.exists){
+        state = Object.assign({}, DEFAULT_STATE, doc.data());
+      }else{
+        state = Object.assign({}, DEFAULT_STATE);
+      }
+      applyingRemoteState = false;
+      render();
+      isFirstSnapshot = false;
+    },
+    (err) => {
+      console.error('Firestore onSnapshot error', err);
+      showToast('Sem conexão com o banco de dados.');
+    }
+  );
+}
+
+async function saveState(){
+  // Evita re-salvar o que acabamos de receber do servidor (loop desnecessário).
+  if(applyingRemoteState) return;
+  try{
+    // JSON round-trip remove campos "undefined", que o Firestore não aceita.
+    const payload = JSON.parse(JSON.stringify(state));
+    await stateDocRef.set(payload);
+  }catch(e){
+    console.error('Firestore save error', e);
+    showToast('Erro ao salvar. Verifique sua conexão.');
+  }
+}
+
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(()=> t.classList.remove('show'), 2200);
+}
+
+// ---------- Render root ----------
+function isFlightDay(airlineId, dateStr){
+  const arr = state.flightDays[airlineId] || [];
+  return arr.includes(dateStr);
+}
+function toggleFlightDay(airlineId, dateStr){
+  if(!state.flightDays[airlineId]) state.flightDays[airlineId] = [];
+  const arr = state.flightDays[airlineId];
+  const idx = arr.indexOf(dateStr);
+  if(idx >= 0) arr.splice(idx,1);
+  else arr.push(dateStr);
+  saveState();
+}
+function flightsOnDate(dateStr){
+  return state.airlines.filter(a => isFlightDay(a.id, dateStr));
+}
+
+function render(){
+  renderLegend();
+  renderCalendar();
+  renderTeam();
+  renderEscalaList();
+  renderVoosList();
+}
+
+function renderLegend(){
+  const el = document.getElementById('legend');
+  let html = '';
+  FUNCTIONS.forEach(f=>{
+    html += `<div class="legend-item"><span class="dot" style="background:${f.hex}"></span>${f.name}</div>`;
+  });
+  html += `<div class="legend-item"><span class="dot" style="background:var(--c-folga)"></span>Folga</div>`;
+  html += `<div class="legend-item"><span class="dot" style="background:var(--c-falta)"></span>Falta</div>`;
+  el.innerHTML = html;
+  const hint = document.createElement('div');
+  hint.className = 'legend-item';
+  hint.innerHTML = `<span class="dot" style="background:var(--accent)"></span>Número laranja = voos no dia`;
+  el.appendChild(hint);
+}
+
+// ---------- Availability logic ----------
+function isOff(personId, dateStr){
+  const arr = state.offDays[personId] || [];
+  return arr.includes(dateStr);
+}
+function isAbsent(personId, dateStr){
+  const arr = state.absences[dateStr] || [];
+  return arr.includes(personId);
+}
+function toggleAbsence(personId, dateStr){
+  if(!state.absences[dateStr]) state.absences[dateStr] = [];
+  const arr = state.absences[dateStr];
+  const idx = arr.indexOf(personId);
+  if(idx >= 0) arr.splice(idx,1);
+  else arr.push(personId);
+  if(arr.length === 0) delete state.absences[dateStr];
+  saveState();
+  renderDaySheet(dateStr);
+  renderCalendar();
+}
+function getAssignedFn(personId, dateStr){
+  return (state.dayAssignments[dateStr] || {})[personId] || null;
+}
+function setAssignedFn(personId, dateStr, fid){
+  if(!state.dayAssignments[dateStr]) state.dayAssignments[dateStr] = {};
+  const current = state.dayAssignments[dateStr][personId];
+  if(current === fid){
+    delete state.dayAssignments[dateStr][personId]; // toggle off = "não definido"
+  }else{
+    state.dayAssignments[dateStr][personId] = fid;
+  }
+  if(Object.keys(state.dayAssignments[dateStr]).length === 0) delete state.dayAssignments[dateStr];
+  saveState();
+  renderDaySheet(dateStr);
+  renderCalendar();
+}
+function toggleOffDay(personId, dateStr){
+  if(!state.offDays[personId]) state.offDays[personId] = [];
+  const arr = state.offDays[personId];
+  const idx = arr.indexOf(dateStr);
+  if(idx >= 0) arr.splice(idx,1);
+  else arr.push(dateStr);
+  saveState();
+}
+
+// ---------- Calendar ----------
+function renderCalendar(){
+  document.getElementById('monthLabel').textContent = `${MONTHS[calMonth]} de ${calYear}`;
+  const grid = document.getElementById('calGrid');
+  let html = '';
+  DOW.forEach(d => html += `<div class="cal-dow">${d}</div>`);
+
+  const firstDow = new Date(calYear, calMonth, 1).getDay();
+  const daysInMonth = new Date(calYear, calMonth+1, 0).getDate();
+  const todayStr = iso(todayObj.getFullYear(), todayObj.getMonth(), todayObj.getDate());
+
+  for(let i=0;i<firstDow;i++) html += `<div class="cal-day empty"></div>`;
+
+  for(let d=1; d<=daysInMonth; d++){
+    const dateStr = iso(calYear, calMonth, d);
+    const isToday = dateStr === todayStr;
+    let dotsHtml = '';
+    let hasFalta = false;
+    let availableCount = 0;
+    state.people.forEach(p=>{
+      const off = isOff(p.id, dateStr);
+      const absent = isAbsent(p.id, dateStr);
+      if(absent) hasFalta = true;
+      if(!off && !absent){
+        availableCount++;
+        const assigned = getAssignedFn(p.id, dateStr);
+        const pickable = pickableFunctions(p);
+        const fnsToShow = (assigned && pickable.includes(assigned)) ? [assigned] : (p.functions||[]);
+        fnsToShow.forEach(fid=>{
+          const f = fnById(fid);
+          if(f) dotsHtml += `<span class="dot" style="background:${f.hex}"></span>`;
+        });
+      }
+    });
+    const flights = flightsOnDate(dateStr);
+    const isBusy = flights.length >= 2;
+    let flightsHtml = flights.map(a => `<span class="flight-pip" style="background:${a.hex}"></span>`).join('');
+    if(flights.length > 0) flightsHtml += `<span class="flight-count">${flights.length}</span>`;
+    if(hasFalta) flightsHtml += `<span class="flight-pip" style="background:var(--c-falta); margin-left:3px;"></span>`;
+
+    html += `<div class="cal-day ${isToday?'today':''} ${isBusy?'busy-day':''}" data-date="${dateStr}">
+      <div class="top-row">
+        <span class="daynum">${d}</span>
+        <div class="flights-row">${flightsHtml}</div>
+      </div>
+      <div class="bottom-row">
+        <div class="dots">${dotsHtml}</div>
+        <span class="count-badge ${availableCount===0?'zero':''}">${availableCount}</span>
+      </div>
+    </div>`;
+  }
+
+  grid.innerHTML = html;
+  grid.querySelectorAll('.cal-day[data-date]').forEach(cell=>{
+    cell.addEventListener('click', ()=> openDaySheet(cell.dataset.date));
+  });
+}
+
+document.getElementById('prevMonth').addEventListener('click', ()=>{
+  calMonth--; if(calMonth < 0){ calMonth = 11; calYear--; }
+  renderCalendar();
+});
+document.getElementById('nextMonth').addEventListener('click', ()=>{
+  calMonth++; if(calMonth > 11){ calMonth = 0; calYear++; }
+  renderCalendar();
+});
+document.getElementById('todayBtn').addEventListener('click', ()=>{
+  calMonth = todayObj.getMonth(); calYear = todayObj.getFullYear();
+  renderCalendar();
+});
+
+// ---------- Day sheet ----------
+function openDaySheet(dateStr){
+  sheetDateStr = dateStr;
+  renderDaySheet(dateStr);
+  document.getElementById('dayOverlay').classList.add('active');
+}
+function closeDaySheet(){
+  document.getElementById('dayOverlay').classList.remove('active');
+}
+document.getElementById('closeSheet').addEventListener('click', closeDaySheet);
+document.getElementById('dayOverlay').addEventListener('click', (e)=>{
+  if(e.target.id === 'dayOverlay') closeDaySheet();
+});
+
+function renderDaySheet(dateStr){
+  const [y,m,d] = dateStr.split('-').map(Number);
+  const dateObj = new Date(y, m-1, d);
+  const weekday = dateObj.toLocaleDateString('pt-BR', { weekday: 'long' });
+  document.getElementById('sheetTitle').textContent = `${d} de ${MONTHS[m-1]}`;
+  document.getElementById('sheetSubtitle').textContent = weekday.charAt(0).toUpperCase()+weekday.slice(1);
+
+  const body = document.getElementById('sheetBody');
+  let html = '';
+
+  const dayFlights = flightsOnDate(dateStr);
+  if(dayFlights.length){
+    html += `<div class="section-label">Voos do dia (${dayFlights.length})</div>`;
+    html += `<div class="fn-chips" style="margin-bottom:16px;">${dayFlights.map(a=>`<span class="fn-chip" style="background:${a.hex}">${a.name}</span>`).join('')}</div>`;
+  }
+
+  if(state.people.length === 0){
+    html += `<div class="empty-note">Nenhuma pessoa cadastrada ainda. Adicione sua equipe na aba "Equipe".</div>`;
+    body.innerHTML = html;
+    return;
+  }
+
+  const disponiveis = [];
+  const folgas = [];
+  state.people.forEach(p=>{
+    const off = isOff(p.id, dateStr);
+    const absent = isAbsent(p.id, dateStr);
+    if(off && !absent) folgas.push(p);
+    else disponiveis.push(p);
+  });
+
+  function chipHtml(p, interactive){
+    const assigned = interactive ? getAssignedFn(p.id, dateStr) : null;
+    const pickable = pickableFunctions(p);
+    const baseList = (p.functions||[]).includes('lider') ? pickable : (p.functions||[]);
+    return baseList.map(fid=>{
+      const f = fnById(fid);
+      if(!f) return '';
+      if(interactive && baseList.length > 1){
+        const isActive = assigned === fid;
+        const dim = assigned && !isActive;
+        return `<span class="fn-chip fn-chip-pick ${isActive?'picked':''}" data-pid="${p.id}" data-fid="${fid}" style="background:${f.hex}; ${dim?'opacity:0.4;':''} cursor:pointer;">${f.name}${isActive?' ✓':''}</span>`;
+      }
+      return `<span class="fn-chip" style="background:${f.hex}">${f.name}</span>`;
+    }).join('');
+  }
+
+  function rowHtml(p, kind){
+    const off = isOff(p.id, dateStr);
+    const absent = isAbsent(p.id, dateStr);
+    const available = !off && !absent;
+    let rowClass = 'person-row';
+    let statusText = 'Disponível';
+    if(off && !absent){ rowClass += ' folga'; statusText = 'Folga programada'; }
+    if(absent){ rowClass += ' falta'; statusText = off ? 'Falta (folga)' : 'Falta'; }
+    const multi = pickableFunctions(p).length > 1;
+    return `<div class="${rowClass}">
+      <div class="person-info">
+        <span class="person-name">${p.name}${p.registration ? ` <span style="color:var(--text-faint); font-weight:500;">· Mat. ${p.registration}</span>` : ''}</span>
+        <div class="fn-chips">${chipHtml(p, available)}</div>
+        ${(available && multi) ? '<span class="status-tag" style="color:var(--text-faint);">Toque na função de hoje</span>' : ''}
+      </div>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span class="status-tag">${statusText}</span>
+        <button class="falta-toggle ${absent?'active':''}" data-pid="${p.id}">${absent ? 'Remover falta' : 'Marcar falta'}</button>
+      </div>
+    </div>`;
+  }
+
+  html += `<div class="section-label">Disponíveis (${disponiveis.filter(p=>!isAbsent(p.id,dateStr)).length})</div>`;
+  html += disponiveis.length ? disponiveis.map(p=>rowHtml(p,'disp')).join('') : `<div class="empty-note">Ninguém disponível.</div>`;
+
+  if(folgas.length){
+    html += `<div class="section-label">De folga (${folgas.length})</div>`;
+    html += folgas.map(p=>rowHtml(p,'folga')).join('');
+  }
+
+  body.innerHTML = html;
+  body.querySelectorAll('.falta-toggle').forEach(btn=>{
+    btn.addEventListener('click', ()=> toggleAbsence(btn.dataset.pid, dateStr));
+  });
+  body.querySelectorAll('.fn-chip-pick').forEach(chip=>{
+    chip.addEventListener('click', ()=> setAssignedFn(chip.dataset.pid, dateStr, chip.dataset.fid) );
+  });
+}
+
+// ---------- Tabs ----------
+document.querySelectorAll('nav.tabs button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+    document.getElementById('view-'+btn.dataset.tab).classList.add('active');
+  });
+});
+
+// ---------- Team view ----------
+function renderVoosList(){
+  const list = document.getElementById('voosList');
+  if(!list) return;
+  if(state.airlines.length === 0){
+    list.innerHTML = `<div class="empty-state"><div style="font-size:32px;">✈️</div><p>Nenhuma companhia cadastrada.<br>Toque em "+ Companhia" para começar.</p></div>`;
+    return;
+  }
+  list.innerHTML = state.airlines.map(a=>{
+    const count = (state.flightDays[a.id]||[]).length;
+    return `<div class="team-card">
+      <div class="info">
+        <span class="name"><span class="dot" style="background:${a.hex}; display:inline-block; margin-right:6px;"></span>${a.name}</span>
+        <span class="status-tag">${count} dia(s) de voo marcados neste mês</span>
+      </div>
+      <div class="actions">
+        <button class="btn-secondary" data-id="${a.id}">Editar dias</button>
+        <button class="icon-btn-sm" data-remove="${a.id}" title="Remover">🗑</button>
+      </div>
+    </div>`;
+  }).join('');
+  list.querySelectorAll('button[data-id]').forEach(btn=>{
+    btn.addEventListener('click', ()=> openFlightDaysModal(btn.dataset.id));
+  });
+  list.querySelectorAll('button[data-remove]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      if(!confirm('Remover essa companhia e os dias de voo marcados dela?')) return;
+      const id = btn.dataset.remove;
+      state.airlines = state.airlines.filter(a=>a.id!==id);
+      delete state.flightDays[id];
+      saveState();
+      renderVoosList();
+      renderCalendar();
+    });
+  });
+}
+
+function renderEscalaList(){
+  const list = document.getElementById('escalaList');
+  if(state.people.length === 0){
+    list.innerHTML = `<div class="empty-state"><div style="font-size:32px;">🗓️</div><p>Nenhuma pessoa cadastrada.<br>Vá em "Equipe" e adicione seu time primeiro.</p></div>`;
+    return;
+  }
+  list.innerHTML = state.people.map(p=>{
+    const chips = (p.functions||[]).map(fid=>{
+      const f = fnById(fid);
+      return f ? `<span class="fn-chip" style="background:${f.hex}">${f.name}</span>` : '';
+    }).join('');
+    const offCount = (state.offDays[p.id]||[]).length;
+    return `<div class="team-card">
+      <div class="info">
+        <span class="name">${p.name}</span>
+        <div class="fn-chips">${chips || '<span class="status-tag">Sem função definida</span>'}</div>
+        <span class="status-tag">${offCount} dia(s) de folga marcados</span>
+      </div>
+      <div class="actions">
+        <button class="btn-secondary" data-id="${p.id}">Editar escala</button>
+      </div>
+    </div>`;
+  }).join('');
+  list.querySelectorAll('button[data-id]').forEach(btn=>{
+    btn.addEventListener('click', ()=> openOffDaysModal(btn.dataset.id));
+  });
+}
+
+function renderTeam(){
+  const list = document.getElementById('teamList');
+  if(state.people.length === 0){
+    list.innerHTML = `<div class="empty-state"><div style="font-size:32px;">👥</div><p>Nenhuma pessoa cadastrada.<br>Toque em "+ Adicionar" para começar.</p></div>`;
+    return;
+  }
+  list.innerHTML = state.people.map(p=>{
+    const chips = (p.functions||[]).map(fid=>{
+      const f = fnById(fid);
+      return f ? `<span class="fn-chip" style="background:${f.hex}">${f.name}</span>` : '';
+    }).join('');
+    const offCount = (state.offDays[p.id]||[]).length;
+    return `<div class="team-card">
+      <div class="info">
+        <span class="name">${p.name}</span>
+        ${p.registration ? `<span class="status-tag">Matrícula ${p.registration}</span>` : ''}
+        <div class="fn-chips">${chips || '<span class="status-tag">Sem função definida</span>'}</div>
+      </div>
+      <div class="actions">
+        <button class="icon-btn-sm" data-action="offdays" data-id="${p.id}" title="Editar folgas">📅</button>
+        <button class="icon-btn-sm" data-action="edit" data-id="${p.id}" title="Editar">✎</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  list.querySelectorAll('[data-action="edit"]').forEach(btn=>{
+    btn.addEventListener('click', ()=> openPersonModal(btn.dataset.id));
+  });
+  list.querySelectorAll('[data-action="offdays"]').forEach(btn=>{
+    btn.addEventListener('click', ()=> openOffDaysModal(btn.dataset.id));
+  });
+}
+
+// ---------- Person modal ----------
+function renderFnOptions(selected){
+  const el = document.getElementById('fnOptions');
+  el.innerHTML = FUNCTIONS.map(f=>{
+    const checked = selected.includes(f.id);
+    return `<label class="fn-option ${checked?'checked':''}" style="--fn-color:${f.hex}" data-fid="${f.id}">
+      <input type="checkbox" value="${f.id}" ${checked?'checked':''}>
+      <span class="fn-dot" style="background:${f.hex}"></span>
+      <span class="lbl">${f.name}</span>
+    </label>`;
+  }).join('');
+  el.querySelectorAll('.fn-option').forEach(opt=>{
+    opt.addEventListener('click', (e)=>{
+      if(e.target.tagName !== 'INPUT'){
+        const input = opt.querySelector('input');
+        input.checked = !input.checked;
+      }
+      opt.classList.toggle('checked', opt.querySelector('input').checked);
+    });
+  });
+}
+
+function openPersonModal(personId){
+  editingPersonId = personId || null;
+  const person = personId ? state.people.find(p=>p.id===personId) : null;
+  document.getElementById('personModalTitle').textContent = person ? 'Editar pessoa' : 'Adicionar pessoa';
+  document.getElementById('personNameInput').value = person ? person.name : '';
+  document.getElementById('personRegInput').value = person ? (person.registration || '') : '';
+  renderFnOptions(person ? (person.functions||[]) : []);
+  document.getElementById('deletePersonBtn').style.display = person ? 'block' : 'none';
+  document.getElementById('personModalOverlay').classList.add('active');
+}
+function closePersonModal(){
+  document.getElementById('personModalOverlay').classList.remove('active');
+  editingPersonId = null;
+}
+document.getElementById('addPersonBtn').addEventListener('click', ()=> openPersonModal(null));
+document.getElementById('cancelPersonBtn').addEventListener('click', closePersonModal);
+document.getElementById('personModalOverlay').addEventListener('click', (e)=>{
+  if(e.target.id === 'personModalOverlay') closePersonModal();
+});
+
+document.getElementById('savePersonBtn').addEventListener('click', ()=>{
+  const name = document.getElementById('personNameInput').value.trim();
+  if(!name){ showToast('Digite um nome.'); return; }
+  const registration = document.getElementById('personRegInput').value.trim();
+  const selectedFns = Array.from(document.querySelectorAll('#fnOptions input:checked')).map(i=>i.value);
+
+  if(editingPersonId){
+    const p = state.people.find(p=>p.id===editingPersonId);
+    p.name = name;
+    p.registration = registration;
+    p.functions = selectedFns;
+  }else{
+    state.people.push({ id: 'p_'+Date.now()+'_'+Math.floor(Math.random()*1000), name, registration, functions: selectedFns });
+  }
+  saveState();
+  renderTeam();
+  renderCalendar();
+  closePersonModal();
+  showToast('Salvo.');
+});
+
+document.getElementById('deletePersonBtn').addEventListener('click', ()=>{
+  if(!editingPersonId) return;
+  if(!confirm('Remover esta pessoa da equipe? Isso também apaga as folgas programadas dela.')) return;
+  state.people = state.people.filter(p=>p.id!==editingPersonId);
+  delete state.offDays[editingPersonId];
+  Object.keys(state.absences).forEach(date=>{
+    state.absences[date] = state.absences[date].filter(id=>id!==editingPersonId);
+    if(state.absences[date].length===0) delete state.absences[date];
+  });
+  saveState();
+  renderTeam();
+  renderCalendar();
+  closePersonModal();
+  showToast('Pessoa removida.');
+});
+
+// ---------- Off-days modal ----------
+function openOffDaysModal(personId){
+  offDaysPersonId = personId;
+  const person = state.people.find(p=>p.id===personId);
+  document.getElementById('offDaysModalTitle').textContent = `Folgas de ${person.name}`;
+  miniYear = calYear; miniMonth = calMonth;
+  renderMiniDow();
+  renderMiniCal();
+  document.getElementById('offDaysModalOverlay').classList.add('active');
+}
+function closeOffDaysModal(){
+  document.getElementById('offDaysModalOverlay').classList.remove('active');
+  offDaysPersonId = null;
+  renderCalendar();
+  renderEscalaList();
+}
+document.getElementById('closeOffDaysBtn').addEventListener('click', closeOffDaysModal);
+document.getElementById('offDaysModalOverlay').addEventListener('click', (e)=>{
+  if(e.target.id === 'offDaysModalOverlay') closeOffDaysModal();
+});
+
+function renderMiniDow(){
+  document.getElementById('miniDowRow').innerHTML = DOW.map(d=>`<div class="mini-dow">${d}</div>`).join('');
+}
+
+function renderMiniCal(){
+  document.getElementById('miniMonthLabel').textContent = `${MONTHS[miniMonth]} ${miniYear}`;
+  const grid = document.getElementById('miniGrid');
+  const firstDow = new Date(miniYear, miniMonth, 1).getDay();
+  const daysInMonth = new Date(miniYear, miniMonth+1, 0).getDate();
+  let html = '';
+  for(let i=0;i<firstDow;i++) html += `<div class="mini-day empty"></div>`;
+  const offArr = state.offDays[offDaysPersonId] || [];
+  for(let d=1; d<=daysInMonth; d++){
+    const dateStr = iso(miniYear, miniMonth, d);
+    const off = offArr.includes(dateStr);
+    html += `<div class="mini-day ${off?'off':''}" data-date="${dateStr}">${d}</div>`;
+  }
+  grid.innerHTML = html;
+  grid.querySelectorAll('.mini-day[data-date]').forEach(cell=>{
+    cell.addEventListener('click', ()=>{
+      toggleOffDay(offDaysPersonId, cell.dataset.date);
+      renderMiniCal();
+    });
+  });
+}
+document.getElementById('miniPrev').addEventListener('click', ()=>{
+  miniMonth--; if(miniMonth<0){ miniMonth=11; miniYear--; }
+  renderMiniCal();
+});
+document.getElementById('miniNext').addEventListener('click', ()=>{
+  miniMonth++; if(miniMonth>11){ miniMonth=0; miniYear++; }
+  renderMiniCal();
+});
+
+// ---------- Airline modal ----------
+function renderAirlineOptions(){
+  const existingNames = state.airlines.map(a=>a.name.toLowerCase());
+  const el = document.getElementById('airlineOptions');
+  const available = AIRLINE_CATALOG.filter(name => name === 'Outra' || !existingNames.includes(name.toLowerCase()));
+  selectedAirlineName = null;
+  document.getElementById('customAirlineField').style.display = 'none';
+  document.getElementById('airlineNameInput').value = '';
+  el.innerHTML = available.map(name=>{
+    return `<label class="fn-option" data-name="${name}">
+      <input type="radio" name="airlinePick" value="${name}">
+      <span class="lbl">${name}</span>
+    </label>`;
+  }).join('');
+  el.querySelectorAll('.fn-option').forEach(opt=>{
+    opt.addEventListener('click', ()=>{
+      el.querySelectorAll('.fn-option').forEach(o=>o.classList.remove('checked'));
+      opt.classList.add('checked');
+      opt.querySelector('input').checked = true;
+      selectedAirlineName = opt.dataset.name;
+      const isOutra = selectedAirlineName === 'Outra';
+      document.getElementById('customAirlineField').style.display = isOutra ? 'block' : 'none';
+    });
+  });
+}
+document.getElementById('addAirlineBtn').addEventListener('click', ()=>{
+  renderAirlineOptions();
+  document.getElementById('airlineModalOverlay').classList.add('active');
+});
+document.getElementById('cancelAirlineBtn').addEventListener('click', ()=>{
+  document.getElementById('airlineModalOverlay').classList.remove('active');
+});
+document.getElementById('airlineModalOverlay').addEventListener('click', (e)=>{
+  if(e.target.id === 'airlineModalOverlay') document.getElementById('airlineModalOverlay').classList.remove('active');
+});
+document.getElementById('saveAirlineBtn').addEventListener('click', ()=>{
+  if(!selectedAirlineName){ showToast('Selecione uma companhia.'); return; }
+  let name = selectedAirlineName;
+  if(name === 'Outra'){
+    name = document.getElementById('airlineNameInput').value.trim();
+    if(!name){ showToast('Digite o nome da companhia.'); return; }
+  }
+  const hex = AIRLINE_COLORS[state.airlines.length % AIRLINE_COLORS.length];
+  state.airlines.push({ id: 'a_'+Date.now()+'_'+Math.floor(Math.random()*1000), name, hex });
+  saveState();
+  renderVoosList();
+  renderCalendar();
+  document.getElementById('airlineModalOverlay').classList.remove('active');
+  showToast('Companhia adicionada.');
+});
+
+// ---------- Flight-days modal ----------
+let flightAirlineId = null;
+let flightMiniYear, flightMiniMonth;
+
+function openFlightDaysModal(airlineId){
+  flightAirlineId = airlineId;
+  const airline = state.airlines.find(a=>a.id===airlineId);
+  document.getElementById('flightDaysModalTitle').textContent = `Dias de voo — ${airline.name}`;
+  flightMiniYear = calYear; flightMiniMonth = calMonth;
+  document.getElementById('flightMiniDowRow').innerHTML = DOW.map(d=>`<div class="mini-dow">${d}</div>`).join('');
+  renderFlightMiniCal();
+  document.getElementById('flightDaysModalOverlay').classList.add('active');
+}
+function closeFlightDaysModal(){
+  document.getElementById('flightDaysModalOverlay').classList.remove('active');
+  flightAirlineId = null;
+  renderCalendar();
+  renderVoosList();
+}
+document.getElementById('closeFlightDaysBtn').addEventListener('click', closeFlightDaysModal);
+document.getElementById('flightDaysModalOverlay').addEventListener('click', (e)=>{
+  if(e.target.id === 'flightDaysModalOverlay') closeFlightDaysModal();
+});
+
+function renderFlightMiniCal(){
+  document.getElementById('flightMiniMonthLabel').textContent = `${MONTHS[flightMiniMonth]} ${flightMiniYear}`;
+  const grid = document.getElementById('flightMiniGrid');
+  const firstDow = new Date(flightMiniYear, flightMiniMonth, 1).getDay();
+  const daysInMonth = new Date(flightMiniYear, flightMiniMonth+1, 0).getDate();
+  let html = '';
+  for(let i=0;i<firstDow;i++) html += `<div class="mini-day empty"></div>`;
+  const arr = state.flightDays[flightAirlineId] || [];
+  for(let d=1; d<=daysInMonth; d++){
+    const dateStr = iso(flightMiniYear, flightMiniMonth, d);
+    const on = arr.includes(dateStr);
+    html += `<div class="mini-day ${on?'off':''}" data-date="${dateStr}" style="${on?`background:rgba(255,107,53,0.2); border-color:var(--accent); color:var(--accent); text-decoration:none; font-weight:700;`:''}">${d}</div>`;
+  }
+  grid.innerHTML = html;
+  grid.querySelectorAll('.mini-day[data-date]').forEach(cell=>{
+    cell.addEventListener('click', ()=>{
+      toggleFlightDay(flightAirlineId, cell.dataset.date);
+      renderFlightMiniCal();
+    });
+  });
+}
+document.getElementById('flightMiniPrev').addEventListener('click', ()=>{
+  flightMiniMonth--; if(flightMiniMonth<0){ flightMiniMonth=11; flightMiniYear--; }
+  renderFlightMiniCal();
+});
+document.getElementById('flightMiniNext').addEventListener('click', ()=>{
+  flightMiniMonth++; if(flightMiniMonth>11){ flightMiniMonth=0; flightMiniYear++; }
+  renderFlightMiniCal();
+});
+
+// ---------- Init ----------
+loadState();
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('service-worker.js').catch((e) => {
+      console.error('Falha ao registrar service worker', e);
+    });
+  });
+}
+</script>
+
+</body>
+</html>
