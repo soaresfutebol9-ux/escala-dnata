@@ -1862,7 +1862,17 @@ function renderEscalaList(){
     btn.addEventListener('click', ()=> openOffDaysModal(btn.dataset.id));
   });
   list.querySelectorAll('button[data-roster]').forEach(btn=>{
-    btn.addEventListener('click', ()=> toggleRosterMember(btn.dataset.roster, calYear, calMonth));
+    btn.addEventListener('click', ()=>{
+      const personId = btn.dataset.roster;
+      const alreadyIn = isInRoster(personId, calYear, calMonth);
+      if(alreadyIn){
+        // Remover é a ação arriscada (some com a pessoa e as folgas marcadas somem
+        // da escala do mês) — pede confirmação pra evitar toque acidental.
+        const person = state.people.find(p=>p.id===personId);
+        if(!confirm(`Remover ${person ? person.name : 'esta pessoa'} da escala de ${MONTHS[calMonth]}?`)) return;
+      }
+      toggleRosterMember(personId, calYear, calMonth);
+    });
   });
 }
 
