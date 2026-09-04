@@ -145,6 +145,7 @@
     position: relative;
     overflow-x: hidden;
     touch-action: pan-y;
+    min-height: calc(100vh - 120px);
   }
 
   .view{ display: none; }
@@ -1876,7 +1877,6 @@ function renderMiniCal(){
 
   const countEl = document.getElementById('miniOffCount');
   countEl.textContent = `${countThisMonth} de ${MAX_OFF_DAYS_PER_MONTH} folgas usadas neste mês (mínimo ${MIN_OFF_DAYS_PER_MONTH})`;
-  countEl.classList.toggle('warn', atMax || atMin);
 
   const legendEl = document.getElementById('miniViolationLegend');
   if(excessCounts.length){
