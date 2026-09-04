@@ -2,7 +2,8 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="format-detection" content="telephone=no">
 <title>Escala — Operações de Pátio</title>
 <meta name="theme-color" content="#0F1720">
 <meta name="description" content="Escala de equipe de Operações de Pátio">
@@ -34,6 +35,7 @@
     --c-operador: #FBBF24;
     --c-restituicao: #A78BFA;
     --c-lider: #FF6B35;
+    --c-hoje: #FFD60A;
 
     --c-disponivel: #34D399;
     --c-folga: #64748B;
@@ -41,6 +43,25 @@
   }
 
   *{ box-sizing: border-box; margin:0; padding:0; }
+
+  html, body{
+    touch-action: pan-x pan-y;
+  }
+
+  *{
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  input, textarea{
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    user-select: text;
+    -webkit-touch-callout: default;
+  }
 
   body{
     background: var(--bg);
@@ -208,7 +229,7 @@
   .cal-day:active{ transform: scale(0.97); }
   .cal-day.empty{ background: none; border: none; cursor: default; }
   .cal-day.empty:hover{ border: none; }
-  .cal-day.today{ border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .cal-day.today{ border-color: var(--c-hoje); box-shadow: 0 0 0 1px var(--c-hoje); }
   .cal-day.busy-day{ border-color: rgba(255,107,53,0.5); }
 
   .cal-day .top-row{
@@ -239,7 +260,7 @@
     font-weight: 600;
     color: var(--text);
   }
-  .cal-day.today .daynum{ color: var(--accent); }
+  .cal-day.today .daynum{ color: var(--c-hoje); }
 
   .cal-day .bottom-row{
     display: flex;
@@ -548,6 +569,29 @@
   }
   .field input[type="text"]:focus{ border-color: var(--accent); }
 
+  .search-input-wrap{ position: relative; margin-bottom: 16px; }
+  .search-input-wrap .search-icon{
+    position: absolute;
+    left: 13px; top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-faint);
+    font-size: 14px;
+    pointer-events: none;
+  }
+  .search-input{
+    width: 100%;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    padding: 11px 13px 11px 36px;
+    border-radius: 10px;
+    outline: none;
+  }
+  .search-input:focus{ border-color: var(--accent); }
+  .search-input::placeholder{ color: var(--text-faint); }
+
   .fn-options{ display: flex; flex-direction: column; gap: 8px; }
   .fn-option{
     display: flex;
@@ -702,6 +746,10 @@
     <div class="team-head">
       <h2>Equipe</h2>
       <button class="btn-primary" id="addPersonBtn">+ Adicionar</button>
+    </div>
+    <div class="search-input-wrap">
+      <span class="search-icon">🔍</span>
+      <input type="text" class="search-input" id="teamSearchInput" placeholder="Buscar por nome ou matrícula...">
     </div>
     <div class="team-list" id="teamList"></div>
   </div>
@@ -1292,13 +1340,25 @@ function renderEscalaList(){
   });
 }
 
+function normalizeText(s){
+  return (s||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+}
+
 function renderTeam(){
   const list = document.getElementById('teamList');
   if(state.people.length === 0){
     list.innerHTML = `<div class="empty-state"><div style="font-size:32px;">👥</div><p>Nenhuma pessoa cadastrada.<br>Toque em "+ Adicionar" para começar.</p></div>`;
     return;
   }
-  list.innerHTML = sortPeople(state.people).map(p=>{
+  const query = normalizeText(document.getElementById('teamSearchInput').value.trim());
+  const filtered = sortPeople(state.people).filter(p =>
+    !query || normalizeText(p.name).includes(query) || normalizeText(p.registration).includes(query)
+  );
+  if(filtered.length === 0){
+    list.innerHTML = `<div class="empty-state"><div style="font-size:32px;">🔍</div><p>Nenhuma pessoa encontrada para "${document.getElementById('teamSearchInput').value.trim()}".</p></div>`;
+    return;
+  }
+  list.innerHTML = filtered.map(p=>{
     const chips = (p.functions||[]).map(fid=>{
       const f = fnById(fid);
       return f ? `<span class="fn-chip" style="background:${f.hex}">${f.name}</span>` : '';
@@ -1362,6 +1422,7 @@ function closePersonModal(){
   editingPersonId = null;
 }
 document.getElementById('addPersonBtn').addEventListener('click', ()=> openPersonModal(null));
+document.getElementById('teamSearchInput').addEventListener('input', renderTeam);
 document.getElementById('cancelPersonBtn').addEventListener('click', closePersonModal);
 document.getElementById('personModalOverlay').addEventListener('click', (e)=>{
   if(e.target.id === 'personModalOverlay') closePersonModal();
