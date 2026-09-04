@@ -398,6 +398,7 @@
 
   .person-info{ display: flex; flex-direction: column; gap: 3px; }
   .person-name{ font-size: 14px; font-weight: 600; }
+  .person-reg{ font-size: 12px; font-weight: 500; color: var(--text-faint); }
   .fn-chips{ display: flex; gap: 5px; flex-wrap: wrap; }
   .fn-chip{
     font-size: 10.5px;
@@ -1470,19 +1471,21 @@ function renderDaySheet(dateStr){
     const absent = isAbsent(p.id, dateStr);
     const available = !off && !absent;
     let rowClass = 'person-row';
-    let statusText = 'Disponível';
-    if(off && !absent){ rowClass += ' folga'; statusText = 'Folga programada'; }
+    let statusText = '';
+    if(off && !absent){ rowClass += ' folga'; statusText = 'Folga'; }
     if(absent){ rowClass += ' falta'; statusText = off ? 'Falta (folga)' : 'Falta'; }
     const multi = pickableFunctions(p).length > 1;
+    const showFaltaBtn = !off || absent; // esconde "Marcar falta" quando a pessoa está de folga (e ainda não tem falta marcada)
     return `<div class="${rowClass}">
       <div class="person-info">
-        <span class="person-name">${p.name}${p.registration ? ` <span style="color:var(--text-faint); font-weight:500;">· Mat. ${p.registration}</span>` : ''}</span>
+        <span class="person-name">${p.name}</span>
+        ${p.registration ? `<span class="person-reg">${p.registration}</span>` : ''}
         <div class="fn-chips">${chipHtml(p, available)}</div>
         ${(available && multi) ? '<span class="status-tag" style="color:var(--text-faint);">Toque na função de hoje</span>' : ''}
       </div>
       <div style="display:flex; align-items:center; gap:8px;">
-        <span class="status-tag">${statusText}</span>
-        <button class="falta-toggle ${absent?'active':''}" data-pid="${p.id}">${absent ? 'Remover falta' : 'Marcar falta'}</button>
+        ${statusText ? `<span class="status-tag">${statusText}</span>` : ''}
+        ${showFaltaBtn ? `<button class="falta-toggle ${absent?'active':''}" data-pid="${p.id}">${absent ? 'Remover falta' : 'Marcar falta'}</button>` : ''}
       </div>
     </div>`;
   }
@@ -1686,7 +1689,6 @@ function renderTeam(){
         <div class="fn-chips">${chips || '<span class="status-tag">Sem função definida</span>'}</div>
       </div>
       <div class="actions">
-        <button class="icon-btn-sm" data-action="offdays" data-id="${p.id}" title="Editar folgas">📅</button>
         <button class="icon-btn-sm" data-action="edit" data-id="${p.id}" title="Editar">✎</button>
       </div>
     </div>`;
@@ -1694,9 +1696,6 @@ function renderTeam(){
 
   list.querySelectorAll('[data-action="edit"]').forEach(btn=>{
     btn.addEventListener('click', ()=> openPersonModal(btn.dataset.id));
-  });
-  list.querySelectorAll('[data-action="offdays"]').forEach(btn=>{
-    btn.addEventListener('click', ()=> openOffDaysModal(btn.dataset.id));
   });
 }
 
