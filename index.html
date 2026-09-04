@@ -684,6 +684,15 @@
     gap: 4px;
     margin-bottom: 10px;
   }
+  .mini-off-count{
+    text-align: center;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-dim);
+    margin: -2px 0 10px;
+  }
+  .mini-off-count.warn{ color: var(--c-falta); }
+
   .mini-dow{ text-align:center; font-size: 10px; color: var(--text-faint); padding-bottom: 3px; }
   .mini-day{
     aspect-ratio: 1;
@@ -698,6 +707,7 @@
   .mini-day.empty{ background: none; border: none; cursor: default; }
   .mini-day.off{ background: rgba(100,116,139,0.35); border-color: var(--c-folga); color: var(--text-dim); text-decoration: line-through; }
   .mini-day.violation{ border-color: var(--c-falta); background: rgba(248,113,113,0.14); color: var(--c-falta); }
+  .mini-day.no-toggle{ opacity: 0.4; }
   .mini-grid.locked .mini-day:not(.empty){ cursor: default; }
   .mini-hint{ font-size: 12px; color: var(--text-faint); margin-bottom: 14px; }
 
@@ -875,10 +885,11 @@
       <span id="miniMonthLabel">—</span>
       <button class="icon-btn-sm" id="miniNext">›</button>
     </div>
+    <div class="mini-off-count" id="miniOffCount"></div>
     <div class="mini-grid" id="miniDowRow"></div>
     <div class="mini-grid" id="miniGrid"></div>
     <div class="mini-legend-note" id="miniViolationLegend" style="display:none;">
-      <span class="mini-legend-dot"></span> Passa de 6 dias seguidos de trabalho — folga obrigatória pela regra da empresa
+      <span class="mini-legend-dot"></span><span class="mini-legend-text"></span>
     </div>
     <div class="modal-actions">
       <button class="btn-primary" id="closeOffDaysBtn" style="width:100%;">Concluído</button>
@@ -1151,6 +1162,17 @@ function toggleOffDay(personId, dateStr){
 // que uma alteração torna um dia "de trabalho" para alguém (remover folga,
 // remover falta), para pegar erros de troca antes que virem 7 dias seguidos.
 const MAX_CONSECUTIVE_WORK_DAYS = 6;
+// Regra da empresa: cada pessoa precisa ter entre 5 e 7 folgas por mês.
+const MIN_OFF_DAYS_PER_MONTH = 5;
+const MAX_OFF_DAYS_PER_MONTH = 7;
+
+function offDaysCountInMonth(personId, year, month){ // month 0-indexado
+  const arr = state.offDays[personId] || [];
+  return arr.filter(dateStr=>{
+    const [y, m] = dateStr.split('-').map(Number);
+    return y === year && (m-1) === month;
+  }).length;
+}
 
 function addDaysToIso(dateStr, delta){
   const [y,m,d] = dateStr.split('-').map(Number);
@@ -1180,6 +1202,13 @@ function consecutiveWorkStreak(personId, dateStr){
   while(isWorkingDay(personId, cursor) && length < 60){ end = cursor; length++; cursor = addDaysToIso(cursor, 1); }
   return { start, end, length };
 }
+// Posição (1-indexada) de dateStr dentro da sequência que começa em streakStart.
+function positionInStreak(streakStart, dateStr){
+  let count = 1;
+  let cursor = streakStart;
+  while(cursor !== dateStr && count < 60){ cursor = addDaysToIso(cursor, 1); count++; }
+  return count;
+}
 // Chamar logo depois de uma alteração que TRANSFORMOU dateStr num dia de trabalho
 // para personId (removeu folga ou removeu falta). Se isso estourar o limite de
 // dias seguidos, avisa e oferece desfazer a alteração via revertFn.
@@ -1190,9 +1219,8 @@ function warnIfConsecutiveViolation(personId, dateStr, revertFn){
   const name = person ? person.name : 'Essa pessoa';
   const keep = confirm(
     `Atenção: com essa alteração, ${name} vai trabalhar ${streak.length} dias seguidos `+
-    `(${formatDateBR(streak.start)} a ${formatDateBR(streak.end)}).\n\n`+
-    `A regra da empresa permite no máximo ${MAX_CONSECUTIVE_WORK_DAYS} dias seguidos — no 7º dia a folga é obrigatória.\n\n`+
-    `Deseja manter esta alteração mesmo assim?`
+    `(${formatDateBR(streak.start)} a ${formatDateBR(streak.end)}) — passa do limite de ${MAX_CONSECUTIVE_WORK_DAYS}.\n\n`+
+    `Manter mesmo assim?`
   );
   if(!keep && typeof revertFn === 'function'){
     revertFn();
@@ -1817,22 +1845,47 @@ function renderMiniCal(){
   const firstDow = new Date(miniYear, miniMonth, 1).getDay();
   const daysInMonth = new Date(miniYear, miniMonth+1, 0).getDate();
   let html = '';
-  let hasViolation = false;
+  const seenStreaks = new Set();
+  const excessCounts = [];
   for(let i=0;i<firstDow;i++) html += `<div class="mini-day empty"></div>`;
   const offArr = state.offDays[offDaysPersonId] || [];
+  const countThisMonth = offDaysCountInMonth(offDaysPersonId, miniYear, miniMonth);
+  const atMax = countThisMonth >= MAX_OFF_DAYS_PER_MONTH;
+  const atMin = countThisMonth <= MIN_OFF_DAYS_PER_MONTH;
   for(let d=1; d<=daysInMonth; d++){
     const dateStr = iso(miniYear, miniMonth, d);
     const off = offArr.includes(dateStr);
     let violation = false;
     if(!off){
       const streak = consecutiveWorkStreak(offDaysPersonId, dateStr);
-      violation = !!(streak && streak.length > MAX_CONSECUTIVE_WORK_DAYS);
+      if(streak && streak.length > MAX_CONSECUTIVE_WORK_DAYS){
+        const pos = positionInStreak(streak.start, dateStr);
+        violation = pos > MAX_CONSECUTIVE_WORK_DAYS; // só os dias "indevidos" (a partir do 7º)
+        if(!seenStreaks.has(streak.start)){
+          seenStreaks.add(streak.start);
+          excessCounts.push(streak.length - MAX_CONSECUTIVE_WORK_DAYS);
+        }
+      }
     }
-    if(violation) hasViolation = true;
-    html += `<div class="mini-day ${off?'off':''} ${violation?'violation':''}" data-date="${dateStr}" title="${violation ? 'Passa de '+MAX_CONSECUTIVE_WORK_DAYS+' dias seguidos de trabalho' : ''}">${d}</div>`;
+    const noToggle = off ? atMin : atMax;
+    const title = violation ? `Dia além do limite de ${MAX_CONSECUTIVE_WORK_DAYS} dias seguidos`
+      : (noToggle ? (off ? `Mínimo de ${MIN_OFF_DAYS_PER_MONTH} folgas no mês` : `Máximo de ${MAX_OFF_DAYS_PER_MONTH} folgas no mês`) : '');
+    html += `<div class="mini-day ${off?'off':''} ${violation?'violation':''} ${noToggle?'no-toggle':''}" data-date="${dateStr}" title="${title}">${d}</div>`;
   }
   grid.innerHTML = html;
-  document.getElementById('miniViolationLegend').style.display = hasViolation ? 'flex' : 'none';
+
+  const countEl = document.getElementById('miniOffCount');
+  countEl.textContent = `${countThisMonth} de ${MAX_OFF_DAYS_PER_MONTH} folgas usadas neste mês (mínimo ${MIN_OFF_DAYS_PER_MONTH})`;
+  countEl.classList.toggle('warn', atMax || atMin);
+
+  const legendEl = document.getElementById('miniViolationLegend');
+  if(excessCounts.length){
+    const total = excessCounts.reduce((a,b)=>a+b, 0);
+    legendEl.querySelector('.mini-legend-text').textContent = `${total} dia${total>1?'s':''} a mais do que o permitido`;
+    legendEl.style.display = 'flex';
+  }else{
+    legendEl.style.display = 'none';
+  }
   if(!offDaysEditUnlocked) grid.classList.add('locked'); else grid.classList.remove('locked');
   grid.querySelectorAll('.mini-day[data-date]').forEach(cell=>{
     cell.addEventListener('click', ()=>{
@@ -1842,6 +1895,15 @@ function renderMiniCal(){
       }
       const dateStr = cell.dataset.date;
       const wasOff = isOff(offDaysPersonId, dateStr);
+      const countNow = offDaysCountInMonth(offDaysPersonId, miniYear, miniMonth);
+      if(!wasOff && countNow >= MAX_OFF_DAYS_PER_MONTH){
+        showToast(`Máximo de ${MAX_OFF_DAYS_PER_MONTH} folgas neste mês. Remova outra antes de adicionar.`);
+        return;
+      }
+      if(wasOff && countNow <= MIN_OFF_DAYS_PER_MONTH){
+        showToast(`Mínimo de ${MIN_OFF_DAYS_PER_MONTH} folgas neste mês. Não é possível remover mais uma.`);
+        return;
+      }
       toggleOffDay(offDaysPersonId, dateStr);
       renderMiniCal();
       if(wasOff){
