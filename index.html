@@ -470,6 +470,7 @@
     color: var(--text-faint);
   }
   .empty-state p{ font-size: 14px; margin-top: 6px; }
+  .cal-grid-empty{ display: block; }
 
   /* --- Modal (add/edit person, off-days editor) --- */
   .modal-overlay{
@@ -791,7 +792,7 @@ const FUNCTIONS = [
 ];
 const DOW = ['dom','seg','ter','qua','qui','sex','sáb'];
 const MONTHS = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
-const DEFAULT_STATE = { people: [], offDays: {}, absences: {}, dayAssignments: {}, airlines: [], flightDays: {} };
+const DEFAULT_STATE = { people: [], offDays: {}, absences: {}, dayAssignments: {}, airlines: [], flightDays: {}, publishedMonths: [] };
 
 // ---------- State ----------
 let state = Object.assign({}, DEFAULT_STATE);
@@ -816,6 +817,15 @@ function pickableFunctions(p){
 }
 function pad(n){ return n < 10 ? '0'+n : ''+n; }
 function iso(y,m,d){ return `${y}-${pad(m+1)}-${pad(d)}`; }
+function monthKey(y,m){ return `${y}-${pad(m+1)}`; }
+function isMonthPublished(y,m){ return (state.publishedMonths||[]).includes(monthKey(y,m)); }
+function publishMonth(y,m){
+  if(!state.publishedMonths) state.publishedMonths = [];
+  const key = monthKey(y,m);
+  if(!state.publishedMonths.includes(key)) state.publishedMonths.push(key);
+  saveState();
+  renderCalendar();
+}
 
 // ---------- Storage (Firebase Firestore) ----------
 // Um único documento guarda todo o estado do app, compartilhado por toda a equipe.
@@ -957,6 +967,19 @@ function toggleOffDay(personId, dateStr){
 function renderCalendar(){
   document.getElementById('monthLabel').textContent = `${MONTHS[calMonth]} de ${calYear}`;
   const grid = document.getElementById('calGrid');
+
+  if(!isMonthPublished(calYear, calMonth)){
+    grid.className = 'cal-grid-empty';
+    grid.innerHTML = `<div class="empty-state">
+      <div style="font-size:32px;">🗓️</div>
+      <p>${MONTHS[calMonth]} de ${calYear} ainda não tem escala criada.<br>Cada mês é independente — comece do zero por aqui.</p>
+      <button class="btn-primary" id="publishMonthBtn" style="margin-top:14px;">+ Criar escala deste mês</button>
+    </div>`;
+    document.getElementById('publishMonthBtn').addEventListener('click', ()=> publishMonth(calYear, calMonth));
+    return;
+  }
+  grid.className = 'cal-grid';
+
   let html = '';
   DOW.forEach(d => html += `<div class="cal-dow">${d}</div>`);
 
