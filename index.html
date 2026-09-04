@@ -1438,6 +1438,7 @@ function renderCalendar(){
     const isPast = dateStr < todayStr;
     let availableCount = 0;
     rosterPeopleFor(calYear, calMonth).forEach(p=>{
+      if((p.functions||[]).some(fid => fid==='lider' || fid==='operador')) return; // líder e operador ficam disponíveis na lista do dia, mas não entram nessa contagem
       const off = isOff(p.id, dateStr);
       const absent = isAbsent(p.id, dateStr);
       if(!off && !absent) availableCount++;
