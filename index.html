@@ -232,6 +232,15 @@
   .cal-day.today{ border-color: var(--c-hoje); box-shadow: 0 0 0 1px var(--c-hoje); }
   .cal-day.busy-day{ border-color: rgba(255,107,53,0.5); }
 
+  .cal-day.past-day{
+    background: var(--bg);
+    border-color: var(--surface);
+    opacity: 0.55;
+  }
+  .cal-day.past-day .daynum{ color: var(--text-faint); }
+  .cal-day.past-day .count-badge{ color: var(--text-faint) !important; }
+  .cal-day.past-day .flight-count{ color: var(--text-faint) !important; }
+
   .cal-day .top-row{
     display: flex;
     justify-content: space-between;
@@ -1101,6 +1110,7 @@ function renderCalendar(){
   for(let d=1; d<=daysInMonth; d++){
     const dateStr = iso(calYear, calMonth, d);
     const isToday = dateStr === todayStr;
+    const isPast = dateStr < todayStr;
     let availableCount = 0;
     rosterPeopleFor(calYear, calMonth).forEach(p=>{
       const off = isOff(p.id, dateStr);
@@ -1111,7 +1121,7 @@ function renderCalendar(){
     const isBusy = flights.length >= 2;
     const flightsHtml = flights.length > 0 ? `<span class="flight-count">${flights.length}</span>` : '';
 
-    html += `<div class="cal-day ${isToday?'today':''} ${isBusy?'busy-day':''}" data-date="${dateStr}">
+    html += `<div class="cal-day ${isToday?'today':''} ${isBusy && !isPast?'busy-day':''} ${isPast?'past-day':''}" data-date="${dateStr}">
       <div class="top-row">
         <span class="daynum">${d}</span>
         <div class="flights-row">${flightsHtml}</div>
