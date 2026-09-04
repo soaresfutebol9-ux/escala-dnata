@@ -244,7 +244,7 @@
   .cal-day .bottom-row{
     display: flex;
     align-items: flex-end;
-    justify-content: space-between;
+    justify-content: flex-end;
   }
 
   .cal-day .dots{
@@ -649,7 +649,7 @@
 <header>
   <div class="eyebrow">Operações de Pátio</div>
   <h1>Escala da Equipe</h1>
-  <p class="sub">Porão · Limpeza · Operador de Equipamento · Restituição</p>
+  <p class="sub">Porão · Limpeza · Operador de Equipamento · Reestituição</p>
 </header>
 
 <nav class="tabs">
@@ -675,8 +675,6 @@
         <button class="icon-btn" id="nextMonth">›</button>
       </div>
     </div>
-
-    <div class="legend" id="legend"></div>
 
     <div class="cal-grid" id="calGrid"></div>
   </div>
@@ -824,7 +822,7 @@ const FUNCTIONS = [
   { id: 'porao', name: 'Porão', color: 'var(--c-porao)', hex: '#5B7FFF' },
   { id: 'limpeza', name: 'Limpeza', color: 'var(--c-limpeza)', hex: '#2DD4BF' },
   { id: 'operador', name: 'Operador de Equipamento', color: 'var(--c-operador)', hex: '#FBBF24' },
-  { id: 'restituicao', name: 'Restituição', color: 'var(--c-restituicao)', hex: '#A78BFA' },
+  { id: 'restituicao', name: 'Reestituição', color: 'var(--c-restituicao)', hex: '#A78BFA' },
   { id: 'lider', name: 'Líder', color: 'var(--c-lider)', hex: '#FF6B35' },
 ];
 const DOW = ['dom','seg','ter','qua','qui','sex','sáb'];
@@ -848,8 +846,7 @@ calMonth = todayObj.getMonth();
 
 function fnById(id){ return FUNCTIONS.find(f => f.id === id); }
 function pickableFunctions(p){
-  // Líder is a wildcard: can act as any operational function on a given day
-  if((p.functions||[]).includes('lider')) return FUNCTIONS.map(f=>f.id);
+  // Líder não é mais coringa: mostra e atua somente com a etiqueta "Líder".
   return p.functions||[];
 }
 function pad(n){ return n < 10 ? '0'+n : ''+n; }
@@ -961,26 +958,10 @@ function flightsOnDate(dateStr){
 }
 
 function render(){
-  renderLegend();
   renderCalendar();
   renderTeam();
   renderEscalaList();
   renderVoosList();
-}
-
-function renderLegend(){
-  const el = document.getElementById('legend');
-  let html = '';
-  FUNCTIONS.forEach(f=>{
-    html += `<div class="legend-item"><span class="dot" style="background:${f.hex}"></span>${f.name}</div>`;
-  });
-  html += `<div class="legend-item"><span class="dot" style="background:var(--c-folga)"></span>Folga</div>`;
-  html += `<div class="legend-item"><span class="dot" style="background:var(--c-falta)"></span>Falta</div>`;
-  el.innerHTML = html;
-  const hint = document.createElement('div');
-  hint.className = 'legend-item';
-  hint.innerHTML = `<span class="dot" style="background:var(--accent)"></span>Número laranja = voos no dia`;
-  el.appendChild(hint);
 }
 
 // ---------- Availability logic ----------
@@ -1057,29 +1038,15 @@ function renderCalendar(){
   for(let d=1; d<=daysInMonth; d++){
     const dateStr = iso(calYear, calMonth, d);
     const isToday = dateStr === todayStr;
-    let dotsHtml = '';
-    let hasFalta = false;
     let availableCount = 0;
     rosterPeopleFor(calYear, calMonth).forEach(p=>{
       const off = isOff(p.id, dateStr);
       const absent = isAbsent(p.id, dateStr);
-      if(absent) hasFalta = true;
-      if(!off && !absent){
-        availableCount++;
-        const assigned = getAssignedFn(p.id, dateStr);
-        const pickable = pickableFunctions(p);
-        const fnsToShow = (assigned && pickable.includes(assigned)) ? [assigned] : (p.functions||[]);
-        fnsToShow.forEach(fid=>{
-          const f = fnById(fid);
-          if(f) dotsHtml += `<span class="dot" style="background:${f.hex}"></span>`;
-        });
-      }
+      if(!off && !absent) availableCount++;
     });
     const flights = flightsOnDate(dateStr);
     const isBusy = flights.length >= 2;
-    let flightsHtml = flights.map(a => `<span class="flight-pip" style="background:${a.hex}"></span>`).join('');
-    if(flights.length > 0) flightsHtml += `<span class="flight-count">${flights.length}</span>`;
-    if(hasFalta) flightsHtml += `<span class="flight-pip" style="background:var(--c-falta); margin-left:3px;"></span>`;
+    const flightsHtml = flights.length > 0 ? `<span class="flight-count">${flights.length}</span>` : '';
 
     html += `<div class="cal-day ${isToday?'today':''} ${isBusy?'busy-day':''}" data-date="${dateStr}">
       <div class="top-row">
@@ -1087,7 +1054,6 @@ function renderCalendar(){
         <div class="flights-row">${flightsHtml}</div>
       </div>
       <div class="bottom-row">
-        <div class="dots">${dotsHtml}</div>
         <span class="count-badge ${availableCount===0?'zero':''}">${availableCount}</span>
       </div>
     </div>`;
@@ -1178,7 +1144,7 @@ function renderDaySheet(dateStr){
   function chipHtml(p, interactive){
     const assigned = interactive ? getAssignedFn(p.id, dateStr) : null;
     const pickable = pickableFunctions(p);
-    const baseList = (p.functions||[]).includes('lider') ? pickable : (p.functions||[]);
+    const baseList = pickable;
     return baseList.map(fid=>{
       const f = fnById(fid);
       if(!f) return '';
