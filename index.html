@@ -391,6 +391,36 @@
     color: var(--c-falta);
   }
 
+  .roster-toggle{
+    background: var(--surface-3);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-size: 11.5px;
+    font-weight: 600;
+    padding: 6px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .roster-toggle:hover{ border-color: var(--c-disponivel); color: var(--c-disponivel); }
+  .roster-toggle.active{
+    background: rgba(52,211,153,0.15);
+    border-color: var(--c-disponivel);
+    color: var(--c-disponivel);
+  }
+
+  .escala-month-bar{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .escala-month-bar h3{
+    font-size: 16px;
+    font-weight: 600;
+    text-transform: capitalize;
+  }
+
   .empty-note{
     color: var(--text-faint);
     font-size: 13px;
@@ -656,7 +686,14 @@
     <div class="team-head">
       <h2>Escala do mês</h2>
     </div>
-    <p class="mini-hint" style="margin-bottom:16px;">Escolha um funcionário e marque as folgas dele no mês. Isso alimenta o calendário automaticamente.</p>
+    <div class="escala-month-bar">
+      <h3 id="escalaMonthLabel">—</h3>
+      <div class="month-nav">
+        <button class="icon-btn" id="escalaPrevMonth">‹</button>
+        <button class="icon-btn" id="escalaNextMonth">›</button>
+      </div>
+    </div>
+    <p class="mini-hint" style="margin-bottom:16px;">Cada mês é independente: inclua quem participa da escala deste mês e marque as folgas de cada um. Isso alimenta o calendário automaticamente.</p>
     <div class="team-list" id="escalaList"></div>
   </div>
 
@@ -792,7 +829,7 @@ const FUNCTIONS = [
 ];
 const DOW = ['dom','seg','ter','qua','qui','sex','sáb'];
 const MONTHS = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
-const DEFAULT_STATE = { people: [], offDays: {}, absences: {}, dayAssignments: {}, airlines: [], flightDays: {}, publishedMonths: [] };
+const DEFAULT_STATE = { people: [], offDays: {}, absences: {}, dayAssignments: {}, airlines: [], flightDays: {}, publishedMonths: [], monthRosters: {} };
 
 // ---------- State ----------
 let state = Object.assign({}, DEFAULT_STATE);
@@ -823,8 +860,36 @@ function publishMonth(y,m){
   if(!state.publishedMonths) state.publishedMonths = [];
   const key = monthKey(y,m);
   if(!state.publishedMonths.includes(key)) state.publishedMonths.push(key);
+  // Um mês novo sempre começa sem ninguém escalado — a equipe precisa ser
+  // incluída manualmente na aba "Escala", mês a mês.
+  if(!state.monthRosters) state.monthRosters = {};
+  if(!state.monthRosters[key]) state.monthRosters[key] = [];
   saveState();
   renderCalendar();
+  renderEscalaList();
+  showToast('Escala criada. Vá na aba "Escala" e inclua quem participa deste mês.');
+}
+
+// ---------- Roster (quem participa da escala de cada mês) ----------
+function isInRoster(personId, y, m){
+  const key = monthKey(y,m);
+  return (state.monthRosters[key] || []).includes(personId);
+}
+function toggleRosterMember(personId, y, m){
+  if(!state.monthRosters) state.monthRosters = {};
+  const key = monthKey(y,m);
+  if(!state.monthRosters[key]) state.monthRosters[key] = [];
+  const arr = state.monthRosters[key];
+  const idx = arr.indexOf(personId);
+  if(idx >= 0) arr.splice(idx,1);
+  else arr.push(personId);
+  saveState();
+  renderEscalaList();
+  renderCalendar();
+}
+function rosterPeopleFor(y, m){
+  const ids = (state.monthRosters || {})[monthKey(y,m)] || [];
+  return state.people.filter(p => ids.includes(p.id));
 }
 
 // ---------- Storage (Firebase Firestore) ----------
@@ -995,7 +1060,7 @@ function renderCalendar(){
     let dotsHtml = '';
     let hasFalta = false;
     let availableCount = 0;
-    state.people.forEach(p=>{
+    rosterPeopleFor(calYear, calMonth).forEach(p=>{
       const off = isOff(p.id, dateStr);
       const absent = isAbsent(p.id, dateStr);
       if(absent) hasFalta = true;
@@ -1047,6 +1112,17 @@ document.getElementById('todayBtn').addEventListener('click', ()=>{
   renderCalendar();
 });
 
+document.getElementById('escalaPrevMonth').addEventListener('click', ()=>{
+  calMonth--; if(calMonth < 0){ calMonth = 11; calYear--; }
+  renderCalendar();
+  renderEscalaList();
+});
+document.getElementById('escalaNextMonth').addEventListener('click', ()=>{
+  calMonth++; if(calMonth > 11){ calMonth = 0; calYear++; }
+  renderCalendar();
+  renderEscalaList();
+});
+
 // ---------- Day sheet ----------
 function openDaySheet(dateStr){
   sheetDateStr = dateStr;
@@ -1077,15 +1153,22 @@ function renderDaySheet(dateStr){
     html += `<div class="fn-chips" style="margin-bottom:16px;">${dayFlights.map(a=>`<span class="fn-chip" style="background:${a.hex}">${a.name}</span>`).join('')}</div>`;
   }
 
+  const rosterPeople = rosterPeopleFor(y, m-1);
+
   if(state.people.length === 0){
     html += `<div class="empty-note">Nenhuma pessoa cadastrada ainda. Adicione sua equipe na aba "Equipe".</div>`;
+    body.innerHTML = html;
+    return;
+  }
+  if(rosterPeople.length === 0){
+    html += `<div class="empty-note">Ninguém foi incluído na escala de ${MONTHS[m-1]} ainda. Vá na aba "Escala" e inclua sua equipe neste mês.</div>`;
     body.innerHTML = html;
     return;
   }
 
   const disponiveis = [];
   const folgas = [];
-  state.people.forEach(p=>{
+  rosterPeople.forEach(p=>{
     const off = isOff(p.id, dateStr);
     const absent = isAbsent(p.id, dateStr);
     if(off && !absent) folgas.push(p);
@@ -1195,6 +1278,7 @@ function renderVoosList(){
 }
 
 function renderEscalaList(){
+  document.getElementById('escalaMonthLabel').textContent = `${MONTHS[calMonth]} de ${calYear}`;
   const list = document.getElementById('escalaList');
   if(state.people.length === 0){
     list.innerHTML = `<div class="empty-state"><div style="font-size:32px;">🗓️</div><p>Nenhuma pessoa cadastrada.<br>Vá em "Equipe" e adicione seu time primeiro.</p></div>`;
@@ -1206,19 +1290,24 @@ function renderEscalaList(){
       return f ? `<span class="fn-chip" style="background:${f.hex}">${f.name}</span>` : '';
     }).join('');
     const offCount = (state.offDays[p.id]||[]).length;
+    const inRoster = isInRoster(p.id, calYear, calMonth);
     return `<div class="team-card">
       <div class="info">
         <span class="name">${p.name}</span>
         <div class="fn-chips">${chips || '<span class="status-tag">Sem função definida</span>'}</div>
-        <span class="status-tag">${offCount} dia(s) de folga marcados</span>
+        <span class="status-tag">${inRoster ? offCount+' dia(s) de folga marcados neste mês' : 'Não incluído na escala deste mês'}</span>
       </div>
       <div class="actions">
-        <button class="btn-secondary" data-id="${p.id}">Editar escala</button>
+        <button class="roster-toggle ${inRoster?'active':''}" data-roster="${p.id}">${inRoster ? 'Incluído ✓' : 'Incluir no mês'}</button>
+        <button class="btn-secondary" data-id="${p.id}" ${inRoster?'':'style="display:none;"'}>Editar folgas</button>
       </div>
     </div>`;
   }).join('');
   list.querySelectorAll('button[data-id]').forEach(btn=>{
     btn.addEventListener('click', ()=> openOffDaysModal(btn.dataset.id));
+  });
+  list.querySelectorAll('button[data-roster]').forEach(btn=>{
+    btn.addEventListener('click', ()=> toggleRosterMember(btn.dataset.roster, calYear, calMonth));
   });
 }
 
@@ -1326,6 +1415,10 @@ document.getElementById('deletePersonBtn').addEventListener('click', ()=>{
   Object.keys(state.absences).forEach(date=>{
     state.absences[date] = state.absences[date].filter(id=>id!==editingPersonId);
     if(state.absences[date].length===0) delete state.absences[date];
+  });
+  Object.keys(state.monthRosters||{}).forEach(key=>{
+    state.monthRosters[key] = state.monthRosters[key].filter(id=>id!==editingPersonId);
+    if(state.monthRosters[key].length===0) delete state.monthRosters[key];
   });
   saveState();
   renderTeam();
