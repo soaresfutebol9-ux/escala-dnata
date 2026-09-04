@@ -587,6 +587,18 @@
     outline: none;
   }
   .field input[type="text"]:focus{ border-color: var(--accent); }
+  .field select{
+    width: 100%;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    padding: 11px 13px;
+    border-radius: 10px;
+    outline: none;
+  }
+  .field select:focus{ border-color: var(--accent); }
 
   .search-input-wrap{ position: relative; margin-bottom: 16px; }
   .search-input-wrap .search-icon{
@@ -707,6 +719,19 @@
   .mini-day.empty{ background: none; border: none; cursor: default; }
   .mini-day.off{ background: rgba(100,116,139,0.35); border-color: var(--c-folga); color: var(--text-dim); text-decoration: line-through; }
   .mini-day.violation{ border-color: var(--c-falta); background: rgba(248,113,113,0.14); color: var(--c-falta); }
+
+  #coverageConflictBanner{ margin-top: 16px; }
+  .conflict-banner-item{
+    color: var(--c-falta);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.5;
+    padding: 10px 14px;
+    background: rgba(248,113,113,0.10);
+    border: 1px solid rgba(248,113,113,0.35);
+    border-radius: 10px;
+    margin-bottom: 8px;
+  }
   .mini-day.no-toggle{ opacity: 0.4; }
   .mini-grid.locked .mini-day:not(.empty){ cursor: default; }
   .mini-hint{ font-size: 12px; color: var(--text-faint); margin-bottom: 14px; }
@@ -789,6 +814,7 @@
     <div class="swipe-viewport" id="calViewport">
       <div class="cal-grid" id="calGrid"></div>
     </div>
+    <div id="coverageConflictBanner"></div>
   </div>
 
   <!-- ESCALA VIEW -->
@@ -804,6 +830,10 @@
       </div>
     </div>
     <p class="mini-hint" style="margin-bottom:16px;">Cada mês é independente: inclua quem participa da escala deste mês e marque as folgas de cada um. Isso alimenta o calendário automaticamente.</p>
+    <div class="search-input-wrap">
+      <span class="search-icon">🔍</span>
+      <input type="text" class="search-input" id="escalaSearchInput" placeholder="Buscar por nome ou matrícula...">
+    </div>
     <div class="swipe-viewport" id="escalaViewport">
       <div class="team-list" id="escalaList"></div>
     </div>
@@ -825,14 +855,36 @@
       <h2>Equipe</h2>
       <button class="btn-primary" id="addPersonBtn">+ Adicionar</button>
     </div>
-    <div class="search-input-wrap">
-      <span class="search-icon">🔍</span>
-      <input type="text" class="search-input" id="teamSearchInput" placeholder="Buscar por nome ou matrícula...">
-    </div>
     <div class="team-list" id="teamList"></div>
+
+    <div class="team-head" style="margin-top:28px;">
+      <h2>Duplas de cobertura</h2>
+      <button class="btn-primary" id="addPairBtn">+ Nova dupla</button>
+    </div>
+    <p class="mini-hint" style="margin-bottom:16px;">Pessoas que nunca podem folgar no mesmo dia. Se isso acontecer, você recebe um aviso na hora de marcar a folga.</p>
+    <div class="team-list" id="pairList"></div>
   </div>
 
 </main>
+
+<!-- Add coverage pair modal -->
+<div class="modal-overlay" id="pairModalOverlay">
+  <div class="modal">
+    <h3>Nova dupla de cobertura</h3>
+    <div class="field">
+      <label>Pessoa 1</label>
+      <select id="pairPersonASelect"></select>
+    </div>
+    <div class="field">
+      <label>Pessoa 2</label>
+      <select id="pairPersonBSelect"></select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="cancelPairBtn">Cancelar</button>
+      <button class="btn-primary" id="savePairBtn">Salvar</button>
+    </div>
+  </div>
+</div>
 
 <!-- Day detail sheet -->
 <div class="overlay" id="dayOverlay">
@@ -952,7 +1004,7 @@ const FUNCTIONS = [
 const DOW = ['dom','seg','ter','qua','qui','sex','sáb'];
 const MONTHS = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
 function capFirst(s){ return s.charAt(0).toUpperCase() + s.slice(1); }
-const DEFAULT_STATE = { people: [], offDays: {}, absences: {}, dayAssignments: {}, airlines: [], flightDays: {}, publishedMonths: [], monthRosters: {} };
+const DEFAULT_STATE = { people: [], offDays: {}, absences: {}, dayAssignments: {}, airlines: [], flightDays: {}, publishedMonths: [], monthRosters: {}, coveragePairs: [] };
 
 // ---------- State ----------
 let state = Object.assign({}, DEFAULT_STATE);
@@ -1110,6 +1162,7 @@ function render(){
   renderTeam();
   renderEscalaList();
   renderVoosList();
+  renderPairList();
 }
 
 // ---------- Availability logic ----------
@@ -1230,7 +1283,22 @@ function warnIfConsecutiveViolation(personId, dateStr, revertFn){
   }
 }
 
-// ---------- Calendar ----------
+// ---------- Duplas de cobertura: pessoas que não podem folgar no mesmo dia ----------
+function pairPartnersOf(personId){
+  return state.coveragePairs
+    .filter(pair => pair.a === personId || pair.b === personId)
+    .map(pair => pair.a === personId ? pair.b : pair.a);
+}
+function personName(personId){
+  const p = state.people.find(p=>p.id===personId);
+  return p ? p.name : 'Essa pessoa';
+}
+// Retorna os IDs dos parceiros de dupla que também estão de folga em dateStr.
+function coverageConflictsFor(personId, dateStr){
+  return pairPartnersOf(personId).filter(pid => isOff(pid, dateStr));
+}
+
+
 function renderCalendar(){
   document.getElementById('monthLabel').textContent = `${capFirst(MONTHS[calMonth])} de ${calYear}`;
   const grid = document.getElementById('calGrid');
@@ -1243,6 +1311,7 @@ function renderCalendar(){
       <button class="btn-primary" id="publishMonthBtn" style="margin-top:14px;">+ Criar escala deste mês</button>
     </div>`;
     document.getElementById('publishMonthBtn').addEventListener('click', ()=> publishMonth(calYear, calMonth));
+    renderCoverageConflictBanner();
     return;
   }
   grid.className = 'cal-grid';
@@ -1285,6 +1354,26 @@ function renderCalendar(){
   grid.querySelectorAll('.cal-day[data-date]').forEach(cell=>{
     cell.addEventListener('click', ()=> openDaySheet(cell.dataset.date));
   });
+  renderCoverageConflictBanner();
+}
+
+// Lista, em vermelho, todo dia do mês em que uma dupla de cobertura folga junto.
+function renderCoverageConflictBanner(){
+  const el = document.getElementById('coverageConflictBanner');
+  if(!el) return;
+  el.innerHTML = '';
+  if(!isMonthPublished(calYear, calMonth) || !state.coveragePairs.length) return;
+  const daysInMonth = new Date(calYear, calMonth+1, 0).getDate();
+  const items = [];
+  for(let d=1; d<=daysInMonth; d++){
+    const dateStr = iso(calYear, calMonth, d);
+    state.coveragePairs.forEach(pair=>{
+      if(isOff(pair.a, dateStr) && isOff(pair.b, dateStr)){
+        items.push(`${personName(pair.a)} e ${personName(pair.b)} estão de folga no dia ${formatDateBR(dateStr)}`);
+      }
+    });
+  }
+  el.innerHTML = items.map(txt => `<div class="conflict-banner-item">${txt}</div>`).join('');
 }
 
 // ---------- Month transition animation + swipe navigation ----------
@@ -1631,7 +1720,15 @@ function renderEscalaList(){
     list.innerHTML = `<div class="empty-state"><div style="font-size:32px;">🗓️</div><p>Nenhuma pessoa cadastrada.<br>Vá em "Equipe" e adicione seu time primeiro.</p></div>`;
     return;
   }
-  list.innerHTML = sortPeople(state.people).map(p=>{
+  const query = normalizeText(document.getElementById('escalaSearchInput').value.trim());
+  const filtered = sortPeople(state.people).filter(p =>
+    !query || normalizeText(p.name).includes(query) || normalizeText(p.registration).includes(query)
+  );
+  if(filtered.length === 0){
+    list.innerHTML = `<div class="empty-state"><div style="font-size:32px;">🔍</div><p>Nenhuma pessoa encontrada para "${document.getElementById('escalaSearchInput').value.trim()}".</p></div>`;
+    return;
+  }
+  list.innerHTML = filtered.map(p=>{
     const chips = (p.functions||[]).map(fid=>{
       const f = fnById(fid);
       return f ? `<span class="fn-chip" style="background:${f.hex}">${f.name}</span>` : '';
@@ -1668,14 +1765,7 @@ function renderTeam(){
     list.innerHTML = `<div class="empty-state"><div style="font-size:32px;">👥</div><p>Nenhuma pessoa cadastrada.<br>Toque em "+ Adicionar" para começar.</p></div>`;
     return;
   }
-  const query = normalizeText(document.getElementById('teamSearchInput').value.trim());
-  const filtered = sortPeople(state.people).filter(p =>
-    !query || normalizeText(p.name).includes(query) || normalizeText(p.registration).includes(query)
-  );
-  if(filtered.length === 0){
-    list.innerHTML = `<div class="empty-state"><div style="font-size:32px;">🔍</div><p>Nenhuma pessoa encontrada para "${document.getElementById('teamSearchInput').value.trim()}".</p></div>`;
-    return;
-  }
+  const filtered = sortPeople(state.people);
   list.innerHTML = filtered.map(p=>{
     const chips = (p.functions||[]).map(fid=>{
       const f = fnById(fid);
@@ -1698,6 +1788,80 @@ function renderTeam(){
     btn.addEventListener('click', ()=> openPersonModal(btn.dataset.id));
   });
 }
+
+// ---------- Duplas de cobertura ----------
+function renderPairList(){
+  const list = document.getElementById('pairList');
+  if(!list) return;
+  if(state.coveragePairs.length === 0){
+    list.innerHTML = `<div class="empty-state"><div style="font-size:32px;">🔗</div><p>Nenhuma dupla cadastrada.<br>Toque em "+ Nova dupla" para criar uma regra.</p></div>`;
+    return;
+  }
+  list.innerHTML = state.coveragePairs.map(pair=>{
+    return `<div class="team-card">
+      <div class="info">
+        <span class="name">${personName(pair.a)} ⇄ ${personName(pair.b)}</span>
+        <span class="status-tag">Nunca podem folgar no mesmo dia</span>
+      </div>
+      <div class="actions">
+        <button class="icon-btn-sm" data-action="delete-pair" data-id="${pair.id}" title="Remover dupla">🗑</button>
+      </div>
+    </div>`;
+  }).join('');
+  list.querySelectorAll('[data-action="delete-pair"]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      if(confirm('Remover esta dupla de cobertura?')){
+        state.coveragePairs = state.coveragePairs.filter(pr=>pr.id!==btn.dataset.id);
+        saveState();
+        renderPairList();
+      }
+    });
+  });
+}
+
+function openPairModal(){
+  const aSel = document.getElementById('pairPersonASelect');
+  const bSel = document.getElementById('pairPersonBSelect');
+  const options = sortPeople(state.people).map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
+  aSel.innerHTML = options;
+  bSel.innerHTML = options;
+  if(state.people.length > 1) bSel.selectedIndex = 1;
+  document.getElementById('pairModalOverlay').classList.add('active');
+}
+function closePairModal(){
+  document.getElementById('pairModalOverlay').classList.remove('active');
+}
+document.getElementById('addPairBtn').addEventListener('click', ()=>{
+  if(state.people.length < 2){
+    showToast('Cadastre pelo menos duas pessoas na equipe antes de criar uma dupla.');
+    return;
+  }
+  openPairModal();
+});
+document.getElementById('cancelPairBtn').addEventListener('click', closePairModal);
+document.getElementById('pairModalOverlay').addEventListener('click', (e)=>{
+  if(e.target.id === 'pairModalOverlay') closePairModal();
+});
+document.getElementById('savePairBtn').addEventListener('click', ()=>{
+  const a = document.getElementById('pairPersonASelect').value;
+  const b = document.getElementById('pairPersonBSelect').value;
+  if(!a || !b || a === b){
+    showToast('Escolha duas pessoas diferentes.');
+    return;
+  }
+  const alreadyExists = state.coveragePairs.some(pr =>
+    (pr.a===a && pr.b===b) || (pr.a===b && pr.b===a)
+  );
+  if(alreadyExists){
+    showToast('Essa dupla já existe.');
+    return;
+  }
+  state.coveragePairs.push({ id: 'pair_'+Date.now()+'_'+Math.floor(Math.random()*1000), a, b });
+  saveState();
+  renderPairList();
+  closePairModal();
+  showToast('Dupla de cobertura criada.');
+});
 
 // ---------- Person modal ----------
 function renderFnOptions(selected){
@@ -1736,7 +1900,7 @@ function closePersonModal(){
   editingPersonId = null;
 }
 document.getElementById('addPersonBtn').addEventListener('click', ()=> openPersonModal(null));
-document.getElementById('teamSearchInput').addEventListener('input', renderTeam);
+document.getElementById('escalaSearchInput').addEventListener('input', renderEscalaList);
 document.getElementById('cancelPersonBtn').addEventListener('click', closePersonModal);
 document.getElementById('personModalOverlay').addEventListener('click', (e)=>{
   if(e.target.id === 'personModalOverlay') closePersonModal();
@@ -1776,8 +1940,10 @@ document.getElementById('deletePersonBtn').addEventListener('click', ()=>{
     state.monthRosters[key] = state.monthRosters[key].filter(id=>id!==editingPersonId);
     if(state.monthRosters[key].length===0) delete state.monthRosters[key];
   });
+  state.coveragePairs = (state.coveragePairs||[]).filter(pr => pr.a!==editingPersonId && pr.b!==editingPersonId);
   saveState();
   renderTeam();
+  renderPairList();
   renderCalendar();
   closePersonModal();
   showToast('Pessoa removida.');
@@ -1908,6 +2074,7 @@ function renderMiniCal(){
           renderMiniCal();
         });
       }
+      renderCoverageConflictBanner();
     });
   });
 }
