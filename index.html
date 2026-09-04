@@ -644,12 +644,8 @@
 </head>
 <body>
 
-<div class="runway-strip"></div>
-
 <header>
-  <div class="eyebrow">Operações de Pátio</div>
-  <h1>Escala da Equipe</h1>
-  <p class="sub">Porão · Limpeza · Operador de Equipamento · Reestituição</p>
+  <h1>ESCALA</h1>
 </header>
 
 <nav class="tabs">
@@ -663,10 +659,6 @@
 
   <!-- CALENDAR VIEW -->
   <div class="view active" id="view-calendario">
-    <div class="share-note" id="shareNote">
-      🔗 Esses dados ficam salvos na nuvem e são visíveis a qualquer pessoa que abrir este link.
-    </div>
-
     <div class="month-bar">
       <h2 id="monthLabel">—</h2>
       <div class="month-nav">
@@ -832,7 +824,7 @@ const DEFAULT_STATE = { people: [], offDays: {}, absences: {}, dayAssignments: {
 // ---------- State ----------
 let state = Object.assign({}, DEFAULT_STATE);
 const AIRLINE_COLORS = ['#3B82F6','#DC2626','#22C55E','#F59E0B','#8B5CF6','#EC4899','#14B8A6'];
-const AIRLINE_CATALOG = ['Azul','LATAM','Gol','Voepass','Itapemirim','Avianca Brasil','American Airlines','Copa Airlines','TAP Portugal','Outra'];
+const AIRLINE_CATALOG = ['Azul','LATAM','Gol','Outra'];
 let selectedAirlineName = null;
 let calYear, calMonth; // 0-indexed month
 let miniYear, miniMonth;
