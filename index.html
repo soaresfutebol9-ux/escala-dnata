@@ -938,7 +938,6 @@
       <button class="edit-toggle-btn" id="offDaysEditToggle" title="Toque para ativar a edição">🔒</button>
     </div>
     <p class="mini-hint" id="offDaysHint">Toque no cadeado para ativar a edição antes de alterar os dias.</p>
-    <p class="mini-hint" style="margin-top:-8px;">Segure um dia (2 seg) para marcar como <span style="color:var(--c-desejada); font-weight:600;">folga desejada</span> — pedida pelo funcionário.</p>
     <div class="mini-cal-head">
       <button class="icon-btn-sm" id="miniPrev">‹</button>
       <span id="miniMonthLabel">—</span>
@@ -2183,7 +2182,7 @@ function renderMiniCal(){
         longPressFired = true;
         pressTimer = null;
         handleLongPress(cell.dataset.date);
-      }, 2000);
+      }, 800);
     };
 
     cell.addEventListener('touchstart', startPress, { passive: true });
@@ -2204,7 +2203,7 @@ function renderMiniCal(){
       const wasOff = isOff(offDaysPersonId, dateStr);
       const wasRequested = wasOff && isRequestedOff(offDaysPersonId, dateStr);
       if(wasRequested){
-        if(!confirm(`Este dia é uma folga desejada — solicitada pelo próprio funcionário. Remover mesmo assim?`)) return;
+        if(!confirm(`Remover a folga desejada de ${formatDateBR(dateStr)}?`)) return;
       }
       const countNow = offDaysCountInMonth(offDaysPersonId, miniYear, miniMonth);
       if(!wasOff && countNow >= MAX_OFF_DAYS_PER_MONTH){
@@ -2229,7 +2228,7 @@ function renderMiniCal(){
   });
 }
 
-// Segurar um dia por ~2s no mini-calendário de folgas para marcar/desmarcar
+// Segurar um dia por ~0,8s no mini-calendário de folgas para marcar/desmarcar
 // esse dia como "folga desejada" (pedida especificamente pelo funcionário).
 function handleLongPress(dateStr){
   if(!offDaysEditUnlocked){
@@ -2242,7 +2241,7 @@ function handleLongPress(dateStr){
   const requested = off && isRequestedOff(personId, dateStr);
 
   if(requested){
-    if(confirm(`Remover a marcação de folga desejada de ${dateLabel}? O dia continua de folga, só deixa de ser marcado como pedido do funcionário.`)){
+    if(confirm(`Remover a marcação de folga desejada de ${dateLabel}?`)){
       unmarkRequestedOff(personId, dateStr);
       renderMiniCal();
       showToast('Marcação removida.');
@@ -2251,7 +2250,7 @@ function handleLongPress(dateStr){
   }
 
   if(off){
-    if(confirm(`Marcar ${dateLabel} como folga desejada — pedida especificamente pelo funcionário?`)){
+    if(confirm(`Marcar ${dateLabel} como folga desejada?`)){
       markRequestedOff(personId, dateStr);
       renderMiniCal();
       showToast('Folga desejada marcada.');
@@ -2265,7 +2264,7 @@ function handleLongPress(dateStr){
     showToast(`Máximo de ${MAX_OFF_DAYS_PER_MONTH} folgas neste mês. Remova outra antes de adicionar.`);
     return;
   }
-  if(confirm(`Marcar ${dateLabel} como folga desejada — pedida especificamente pelo funcionário? Esse dia será registrado como folga.`)){
+  if(confirm(`Marcar ${dateLabel} como folga desejada?`)){
     toggleOffDay(personId, dateStr);
     markRequestedOff(personId, dateStr);
     renderMiniCal();
