@@ -858,11 +858,10 @@
     <div class="team-list" id="teamList"></div>
 
     <div class="team-head" style="margin-top:28px;">
-      <h2>Duplas de cobertura</h2>
-      <button class="btn-primary" id="addPairBtn">+ Nova dupla</button>
+      <h2>Restrições de folga</h2>
+      <button class="btn-primary" id="addPairBtn">+ Nova restrição</button>
     </div>
-    <p class="mini-hint" style="margin-bottom:16px;">Pessoas que nunca podem folgar no mesmo dia. Se isso acontecer, você recebe um aviso na hora de marcar a folga.</p>
-    <div class="team-list" id="pairList"></div>
+    <div class="team-list" id="pairList" style="margin-top:16px;"></div>
   </div>
 
 </main>
@@ -870,7 +869,7 @@
 <!-- Add coverage pair modal -->
 <div class="modal-overlay" id="pairModalOverlay">
   <div class="modal">
-    <h3>Nova dupla de cobertura</h3>
+    <h3>Nova restrição de folga</h3>
     <div class="field">
       <label>Pessoa 1</label>
       <select id="pairPersonASelect"></select>
@@ -1794,14 +1793,13 @@ function renderPairList(){
   const list = document.getElementById('pairList');
   if(!list) return;
   if(state.coveragePairs.length === 0){
-    list.innerHTML = `<div class="empty-state"><div style="font-size:32px;">🔗</div><p>Nenhuma dupla cadastrada.<br>Toque em "+ Nova dupla" para criar uma regra.</p></div>`;
+    list.innerHTML = `<div class="empty-state"><div style="font-size:32px;">🔗</div><p>Nenhuma restrição cadastrada.<br>Toque em "+ Nova restrição" para criar uma regra.</p></div>`;
     return;
   }
   list.innerHTML = state.coveragePairs.map(pair=>{
     return `<div class="team-card">
       <div class="info">
         <span class="name">${personName(pair.a)} ⇄ ${personName(pair.b)}</span>
-        <span class="status-tag">Nunca podem folgar no mesmo dia</span>
       </div>
       <div class="actions">
         <button class="icon-btn-sm" data-action="delete-pair" data-id="${pair.id}" title="Remover dupla">🗑</button>
@@ -1810,7 +1808,7 @@ function renderPairList(){
   }).join('');
   list.querySelectorAll('[data-action="delete-pair"]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
-      if(confirm('Remover esta dupla de cobertura?')){
+      if(confirm('Remover esta restrição de folga?')){
         state.coveragePairs = state.coveragePairs.filter(pr=>pr.id!==btn.dataset.id);
         saveState();
         renderPairList();
