@@ -849,6 +849,29 @@ function pickableFunctions(p){
   // Líder não é mais coringa: mostra e atua somente com a etiqueta "Líder".
   return p.functions||[];
 }
+
+// ---------- Ordenação padrão da equipe ----------
+// Líder sempre primeiro, depois Operador de Equipamento, depois o restante —
+// e dentro de cada grupo, ordenado por matrícula crescente.
+function priorityRank(p){
+  const fns = p.functions||[];
+  if(fns.includes('lider')) return 0;
+  if(fns.includes('operador')) return 1;
+  return 2;
+}
+function matriculaNum(p){
+  const n = parseInt((p.registration||'').replace(/\D/g,''), 10);
+  return isNaN(n) ? Infinity : n;
+}
+function sortPeople(list){
+  return [...list].sort((a,b)=>{
+    const ra = priorityRank(a), rb = priorityRank(b);
+    if(ra !== rb) return ra - rb;
+    const ma = matriculaNum(a), mb = matriculaNum(b);
+    if(ma !== mb) return ma - mb;
+    return (a.registration||'').localeCompare(b.registration||'');
+  });
+}
 function pad(n){ return n < 10 ? '0'+n : ''+n; }
 function iso(y,m,d){ return `${y}-${pad(m+1)}-${pad(d)}`; }
 function monthKey(y,m){ return `${y}-${pad(m+1)}`; }
@@ -1134,7 +1157,7 @@ function renderDaySheet(dateStr){
 
   const disponiveis = [];
   const folgas = [];
-  rosterPeople.forEach(p=>{
+  sortPeople(rosterPeople).forEach(p=>{
     const off = isOff(p.id, dateStr);
     const absent = isAbsent(p.id, dateStr);
     if(off && !absent) folgas.push(p);
@@ -1250,7 +1273,7 @@ function renderEscalaList(){
     list.innerHTML = `<div class="empty-state"><div style="font-size:32px;">🗓️</div><p>Nenhuma pessoa cadastrada.<br>Vá em "Equipe" e adicione seu time primeiro.</p></div>`;
     return;
   }
-  list.innerHTML = state.people.map(p=>{
+  list.innerHTML = sortPeople(state.people).map(p=>{
     const chips = (p.functions||[]).map(fid=>{
       const f = fnById(fid);
       return f ? `<span class="fn-chip" style="background:${f.hex}">${f.name}</span>` : '';
@@ -1283,7 +1306,7 @@ function renderTeam(){
     list.innerHTML = `<div class="empty-state"><div style="font-size:32px;">👥</div><p>Nenhuma pessoa cadastrada.<br>Toque em "+ Adicionar" para começar.</p></div>`;
     return;
   }
-  list.innerHTML = state.people.map(p=>{
+  list.innerHTML = sortPeople(state.people).map(p=>{
     const chips = (p.functions||[]).map(fid=>{
       const f = fnById(fid);
       return f ? `<span class="fn-chip" style="background:${f.hex}">${f.name}</span>` : '';
