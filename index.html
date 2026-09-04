@@ -142,6 +142,9 @@
     max-width: 960px;
     margin: 0 auto;
     padding: 20px;
+    position: relative;
+    overflow-x: hidden;
+    touch-action: pan-y;
   }
 
   .view{ display: none; }
@@ -694,8 +697,25 @@
   }
   .mini-day.empty{ background: none; border: none; cursor: default; }
   .mini-day.off{ background: rgba(100,116,139,0.35); border-color: var(--c-folga); color: var(--text-dim); text-decoration: line-through; }
+  .mini-day.violation{ border-color: var(--c-falta); background: rgba(248,113,113,0.14); color: var(--c-falta); }
   .mini-grid.locked .mini-day:not(.empty){ cursor: default; }
   .mini-hint{ font-size: 12px; color: var(--text-faint); margin-bottom: 14px; }
+
+  .mini-legend-note{
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 11.5px;
+    color: var(--c-falta);
+    margin: -2px 0 14px;
+    line-height: 1.4;
+  }
+  .mini-legend-note .mini-legend-dot{
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--c-falta);
+    flex-shrink: 0;
+  }
 
   .toast{
     position: fixed;
@@ -857,6 +877,9 @@
     </div>
     <div class="mini-grid" id="miniDowRow"></div>
     <div class="mini-grid" id="miniGrid"></div>
+    <div class="mini-legend-note" id="miniViolationLegend" style="display:none;">
+      <span class="mini-legend-dot"></span> Passa de 6 dias seguidos de trabalho — folga obrigatória pela regra da empresa
+    </div>
     <div class="modal-actions">
       <button class="btn-primary" id="closeOffDaysBtn" style="width:100%;">Concluído</button>
     </div>
@@ -1123,6 +1146,62 @@ function toggleOffDay(personId, dateStr){
   saveState();
 }
 
+// ---------- Regra da empresa: máximo de dias de trabalho seguidos ----------
+// No 7º dia seguido (útil ou não), a folga é obrigatória. Isso é checado sempre
+// que uma alteração torna um dia "de trabalho" para alguém (remover folga,
+// remover falta), para pegar erros de troca antes que virem 7 dias seguidos.
+const MAX_CONSECUTIVE_WORK_DAYS = 6;
+
+function addDaysToIso(dateStr, delta){
+  const [y,m,d] = dateStr.split('-').map(Number);
+  const dt = new Date(y, m-1, d);
+  dt.setDate(dt.getDate() + delta);
+  return iso(dt.getFullYear(), dt.getMonth(), dt.getDate());
+}
+function formatDateBR(dateStr){
+  const [, m, d] = dateStr.split('-');
+  return `${d}/${m}`;
+}
+function isRosteredOnDate(personId, dateStr){
+  const [y, m] = dateStr.split('-').map(Number);
+  return isInRoster(personId, y, m-1);
+}
+function isWorkingDay(personId, dateStr){
+  return isRosteredOnDate(personId, dateStr) && !isOff(personId, dateStr) && !isAbsent(personId, dateStr);
+}
+// Retorna { start, end, length } da sequência de dias de trabalho seguidos que
+// contém dateStr, ou null se dateStr não é um dia de trabalho para essa pessoa.
+function consecutiveWorkStreak(personId, dateStr){
+  if(!isWorkingDay(personId, dateStr)) return null;
+  let start = dateStr, end = dateStr, length = 1;
+  let cursor = addDaysToIso(dateStr, -1);
+  while(isWorkingDay(personId, cursor) && length < 60){ start = cursor; length++; cursor = addDaysToIso(cursor, -1); }
+  cursor = addDaysToIso(dateStr, 1);
+  while(isWorkingDay(personId, cursor) && length < 60){ end = cursor; length++; cursor = addDaysToIso(cursor, 1); }
+  return { start, end, length };
+}
+// Chamar logo depois de uma alteração que TRANSFORMOU dateStr num dia de trabalho
+// para personId (removeu folga ou removeu falta). Se isso estourar o limite de
+// dias seguidos, avisa e oferece desfazer a alteração via revertFn.
+function warnIfConsecutiveViolation(personId, dateStr, revertFn){
+  const streak = consecutiveWorkStreak(personId, dateStr);
+  if(!streak || streak.length <= MAX_CONSECUTIVE_WORK_DAYS) return;
+  const person = state.people.find(p=>p.id===personId);
+  const name = person ? person.name : 'Essa pessoa';
+  const keep = confirm(
+    `Atenção: com essa alteração, ${name} vai trabalhar ${streak.length} dias seguidos `+
+    `(${formatDateBR(streak.start)} a ${formatDateBR(streak.end)}).\n\n`+
+    `A regra da empresa permite no máximo ${MAX_CONSECUTIVE_WORK_DAYS} dias seguidos — no 7º dia a folga é obrigatória.\n\n`+
+    `Deseja manter esta alteração mesmo assim?`
+  );
+  if(!keep && typeof revertFn === 'function'){
+    revertFn();
+    showToast('Alteração desfeita para respeitar o limite de dias seguidos.');
+  }else if(keep){
+    showToast('Alteração mantida — atenção ao limite de dias seguidos.');
+  }
+}
+
 // ---------- Calendar ----------
 function renderCalendar(){
   document.getElementById('monthLabel').textContent = `${MONTHS[calMonth]} de ${calYear}`;
@@ -1288,8 +1367,8 @@ document.getElementById('todayBtn').addEventListener('click', ()=>{
 document.getElementById('escalaPrevMonth').addEventListener('click', ()=> goEscala('prev'));
 document.getElementById('escalaNextMonth').addEventListener('click', ()=> goEscala('next'));
 
-attachSwipeNav(document.getElementById('calViewport'), ()=> goCalendar('next'), ()=> goCalendar('prev'));
-attachSwipeNav(document.getElementById('escalaViewport'), ()=> goEscala('next'), ()=> goEscala('prev'));
+// Note: swipe navigation moves between tabs (see "Tabs" section below), not between
+// months inside a tab — month change here is button-only (‹ ›).
 
 // ---------- Day sheet ----------
 function openDaySheet(dateStr){
@@ -1391,7 +1470,15 @@ function renderDaySheet(dateStr){
 
   body.innerHTML = html;
   body.querySelectorAll('.falta-toggle').forEach(btn=>{
-    btn.addEventListener('click', ()=> toggleAbsence(btn.dataset.pid, dateStr));
+    btn.addEventListener('click', ()=>{
+      const pid = btn.dataset.pid;
+      const wasAbsent = isAbsent(pid, dateStr);
+      toggleAbsence(pid, dateStr);
+      if(wasAbsent){
+        // "Remover falta" — a pessoa volta a trabalhar nesse dia, checamos a regra.
+        warnIfConsecutiveViolation(pid, dateStr, ()=> toggleAbsence(pid, dateStr));
+      }
+    });
   });
   body.querySelectorAll('.fn-chip-pick').forEach(chip=>{
     chip.addEventListener('click', ()=> setAssignedFn(chip.dataset.pid, dateStr, chip.dataset.fid) );
@@ -1399,14 +1486,76 @@ function renderDaySheet(dateStr){
 }
 
 // ---------- Tabs ----------
+const TAB_ORDER = ['calendario', 'escala', 'voos', 'equipe'];
+
+function setActiveTabInstant(tabName){
+  document.querySelectorAll('nav.tabs button').forEach(b=> b.classList.toggle('active', b.dataset.tab === tabName));
+  document.querySelectorAll('.view').forEach(v=> v.classList.toggle('active', v.id === 'view-'+tabName));
+}
+
+// Slides the outgoing tab out and the incoming tab in — same fluid-but-snappy
+// timing as the month transitions. This is the ONLY place swipe navigation acts:
+// moving between tabs, never between months inside a tab.
+function animateTabChange(tabName, direction){
+  const mainEl = document.querySelector('main');
+  if(mainEl.dataset.animating === '1') return;
+  const currentView = document.querySelector('.view.active');
+  if(!currentView || currentView.id === 'view-'+tabName) return;
+  mainEl.dataset.animating = '1';
+
+  const OUT_MS = 140;
+  const IN_MS = 240;
+  const exitX = direction === 'next' ? -26 : 26;
+  const enterX = direction === 'next' ? 26 : -26;
+
+  currentView.style.transition = `transform ${OUT_MS}ms cubic-bezier(.4,0,1,1), opacity ${OUT_MS}ms ease`;
+  currentView.style.transform = `translateX(${exitX}px)`;
+  currentView.style.opacity = '0';
+
+  setTimeout(()=>{
+    setActiveTabInstant(tabName);
+    currentView.style.transition = '';
+    currentView.style.transform = '';
+    currentView.style.opacity = '';
+
+    const newView = document.querySelector('.view.active');
+    newView.style.transition = 'none';
+    newView.style.transform = `translateX(${enterX}px)`;
+    newView.style.opacity = '0';
+    void newView.offsetWidth; // force reflow so the transition below actually animates
+
+    newView.style.transition = `transform ${IN_MS}ms cubic-bezier(.22,.61,.36,1), opacity ${IN_MS}ms ease`;
+    newView.style.transform = 'translateX(0)';
+    newView.style.opacity = '1';
+
+    setTimeout(()=>{ mainEl.dataset.animating = '0'; }, IN_MS);
+  }, OUT_MS);
+}
+
 document.querySelectorAll('nav.tabs button').forEach(btn=>{
   btn.addEventListener('click', ()=>{
-    document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active');
-    document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
-    document.getElementById('view-'+btn.dataset.tab).classList.add('active');
+    const targetTab = btn.dataset.tab;
+    const currentTab = document.querySelector('nav.tabs button.active').dataset.tab;
+    if(targetTab === currentTab) return;
+    const direction = TAB_ORDER.indexOf(targetTab) > TAB_ORDER.indexOf(currentTab) ? 'next' : 'prev';
+    animateTabChange(targetTab, direction);
   });
 });
+
+// Swipe left/right anywhere in the main content area moves between tabs
+// (Calendário ↔ Escala ↔ Voos ↔ Equipe). Doesn't wrap past the first/last tab.
+attachSwipeNav(document.querySelector('main'),
+  ()=>{
+    const currentTab = document.querySelector('nav.tabs button.active').dataset.tab;
+    const idx = TAB_ORDER.indexOf(currentTab);
+    if(idx < TAB_ORDER.length - 1) animateTabChange(TAB_ORDER[idx+1], 'next');
+  },
+  ()=>{
+    const currentTab = document.querySelector('nav.tabs button.active').dataset.tab;
+    const idx = TAB_ORDER.indexOf(currentTab);
+    if(idx > 0) animateTabChange(TAB_ORDER[idx-1], 'prev');
+  }
+);
 
 // ---------- Team view ----------
 function renderVoosList(){
@@ -1668,14 +1817,22 @@ function renderMiniCal(){
   const firstDow = new Date(miniYear, miniMonth, 1).getDay();
   const daysInMonth = new Date(miniYear, miniMonth+1, 0).getDate();
   let html = '';
+  let hasViolation = false;
   for(let i=0;i<firstDow;i++) html += `<div class="mini-day empty"></div>`;
   const offArr = state.offDays[offDaysPersonId] || [];
   for(let d=1; d<=daysInMonth; d++){
     const dateStr = iso(miniYear, miniMonth, d);
     const off = offArr.includes(dateStr);
-    html += `<div class="mini-day ${off?'off':''}" data-date="${dateStr}">${d}</div>`;
+    let violation = false;
+    if(!off){
+      const streak = consecutiveWorkStreak(offDaysPersonId, dateStr);
+      violation = !!(streak && streak.length > MAX_CONSECUTIVE_WORK_DAYS);
+    }
+    if(violation) hasViolation = true;
+    html += `<div class="mini-day ${off?'off':''} ${violation?'violation':''}" data-date="${dateStr}" title="${violation ? 'Passa de '+MAX_CONSECUTIVE_WORK_DAYS+' dias seguidos de trabalho' : ''}">${d}</div>`;
   }
   grid.innerHTML = html;
+  document.getElementById('miniViolationLegend').style.display = hasViolation ? 'flex' : 'none';
   if(!offDaysEditUnlocked) grid.classList.add('locked'); else grid.classList.remove('locked');
   grid.querySelectorAll('.mini-day[data-date]').forEach(cell=>{
     cell.addEventListener('click', ()=>{
@@ -1683,8 +1840,17 @@ function renderMiniCal(){
         showToast('Toque no 🔒 para ativar a edição.');
         return;
       }
-      toggleOffDay(offDaysPersonId, cell.dataset.date);
+      const dateStr = cell.dataset.date;
+      const wasOff = isOff(offDaysPersonId, dateStr);
+      toggleOffDay(offDaysPersonId, dateStr);
       renderMiniCal();
+      if(wasOff){
+        // A folga foi removida — o dia virou dia de trabalho, então checamos a regra.
+        warnIfConsecutiveViolation(offDaysPersonId, dateStr, ()=>{
+          toggleOffDay(offDaysPersonId, dateStr); // desfaz: recoloca a folga
+          renderMiniCal();
+        });
+      }
     });
   });
 }
