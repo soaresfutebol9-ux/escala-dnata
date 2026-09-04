@@ -162,7 +162,6 @@
   .month-bar h2{
     font-size: 20px;
     font-weight: 600;
-    text-transform: capitalize;
   }
 
   .month-nav{ display: flex; gap: 8px; }
@@ -459,7 +458,6 @@
   .escala-month-bar h3{
     font-size: 16px;
     font-weight: 600;
-    text-transform: capitalize;
   }
 
   .empty-note{
@@ -886,7 +884,6 @@
       <span id="miniMonthLabel">—</span>
       <button class="icon-btn-sm" id="miniNext">›</button>
     </div>
-    <div class="mini-off-count" id="miniOffCount"></div>
     <div class="mini-grid" id="miniDowRow"></div>
     <div class="mini-grid" id="miniGrid"></div>
     <div class="mini-legend-note" id="miniViolationLegend" style="display:none;">
@@ -947,12 +944,13 @@
 const FUNCTIONS = [
   { id: 'porao', name: 'Porão', color: 'var(--c-porao)', hex: '#5B7FFF' },
   { id: 'limpeza', name: 'Limpeza', color: 'var(--c-limpeza)', hex: '#2DD4BF' },
-  { id: 'operador', name: 'Operador de Equipamento', color: 'var(--c-operador)', hex: '#FBBF24' },
+  { id: 'operador', name: 'Operador', color: 'var(--c-operador)', hex: '#FBBF24' },
   { id: 'restituicao', name: 'Reestituição', color: 'var(--c-restituicao)', hex: '#A78BFA' },
   { id: 'lider', name: 'Líder', color: 'var(--c-lider)', hex: '#FF6B35' },
 ];
 const DOW = ['dom','seg','ter','qua','qui','sex','sáb'];
 const MONTHS = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+function capFirst(s){ return s.charAt(0).toUpperCase() + s.slice(1); }
 const DEFAULT_STATE = { people: [], offDays: {}, absences: {}, dayAssignments: {}, airlines: [], flightDays: {}, publishedMonths: [], monthRosters: {} };
 
 // ---------- State ----------
@@ -977,7 +975,7 @@ function pickableFunctions(p){
 }
 
 // ---------- Ordenação padrão da equipe ----------
-// Líder sempre primeiro, depois Operador de Equipamento, depois o restante —
+// Líder sempre primeiro, depois Operador, depois o restante —
 // e dentro de cada grupo, ordenado por matrícula crescente.
 function priorityRank(p){
   const fns = p.functions||[];
@@ -1233,7 +1231,7 @@ function warnIfConsecutiveViolation(personId, dateStr, revertFn){
 
 // ---------- Calendar ----------
 function renderCalendar(){
-  document.getElementById('monthLabel').textContent = `${MONTHS[calMonth]} de ${calYear}`;
+  document.getElementById('monthLabel').textContent = `${capFirst(MONTHS[calMonth])} de ${calYear}`;
   const grid = document.getElementById('calGrid');
 
   if(!isMonthPublished(calYear, calMonth)){
@@ -1624,7 +1622,7 @@ function renderVoosList(){
 }
 
 function renderEscalaList(){
-  document.getElementById('escalaMonthLabel').textContent = `${MONTHS[calMonth]} de ${calYear}`;
+  document.getElementById('escalaMonthLabel').textContent = `${capFirst(MONTHS[calMonth])} de ${calYear}`;
   const list = document.getElementById('escalaList');
   if(state.people.length === 0){
     list.innerHTML = `<div class="empty-state"><div style="font-size:32px;">🗓️</div><p>Nenhuma pessoa cadastrada.<br>Vá em "Equipe" e adicione seu time primeiro.</p></div>`;
@@ -1875,8 +1873,6 @@ function renderMiniCal(){
   }
   grid.innerHTML = html;
 
-  const countEl = document.getElementById('miniOffCount');
-  countEl.textContent = `${countThisMonth} de ${MAX_OFF_DAYS_PER_MONTH} folgas usadas neste mês (mínimo ${MIN_OFF_DAYS_PER_MONTH})`;
 
   const legendEl = document.getElementById('miniViolationLegend');
   if(excessCounts.length){
