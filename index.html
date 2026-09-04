@@ -40,6 +40,7 @@
     --c-disponivel: #34D399;
     --c-folga: #64748B;
     --c-falta: #F87171;
+    --c-desejada: #38BDF8;
   }
 
   *{ box-sizing: border-box; margin:0; padding:0; }
@@ -240,7 +241,7 @@
   .cal-day.empty{ background: none; border: none; cursor: default; }
   .cal-day.empty:hover{ border: none; }
   .cal-day.today{ border-color: var(--c-hoje); box-shadow: 0 0 0 1px var(--c-hoje); }
-  .cal-day.busy-day{ border-color: rgba(255,107,53,0.5); }
+
 
   .cal-day.past-day{
     background: var(--bg);
@@ -719,6 +720,12 @@
   .mini-day.empty{ background: none; border: none; cursor: default; }
   .mini-day.off{ background: rgba(100,116,139,0.35); border-color: var(--c-folga); color: var(--text-dim); text-decoration: line-through; }
   .mini-day.violation{ border-color: var(--c-falta); background: rgba(248,113,113,0.14); color: var(--c-falta); }
+  .mini-day.requested{
+    border-color: var(--c-desejada);
+    border-width: 2px;
+    box-shadow: 0 0 0 1px var(--c-desejada);
+    color: var(--c-desejada);
+  }
 
   #coverageConflictBanner{ margin-top: 16px; }
   .conflict-banner-item{
@@ -931,6 +938,7 @@
       <button class="edit-toggle-btn" id="offDaysEditToggle" title="Toque para ativar a edição">🔒</button>
     </div>
     <p class="mini-hint" id="offDaysHint">Toque no cadeado para ativar a edição antes de alterar os dias.</p>
+    <p class="mini-hint" style="margin-top:-8px;">Segure um dia (2 seg) para marcar como <span style="color:var(--c-desejada); font-weight:600;">folga desejada</span> — pedida pelo funcionário.</p>
     <div class="mini-cal-head">
       <button class="icon-btn-sm" id="miniPrev">‹</button>
       <span id="miniMonthLabel">—</span>
@@ -1003,7 +1011,7 @@ const FUNCTIONS = [
 const DOW = ['dom','seg','ter','qua','qui','sex','sáb'];
 const MONTHS = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
 function capFirst(s){ return s.charAt(0).toUpperCase() + s.slice(1); }
-const DEFAULT_STATE = { people: [], offDays: {}, absences: {}, dayAssignments: {}, airlines: [], flightDays: {}, publishedMonths: [], monthRosters: {}, coveragePairs: [] };
+const DEFAULT_STATE = { people: [], offDays: {}, requestedOffDays: {}, absences: {}, dayAssignments: {}, airlines: [], flightDays: {}, publishedMonths: [], monthRosters: {}, coveragePairs: [] };
 
 // ---------- State ----------
 let state = Object.assign({}, DEFAULT_STATE);
@@ -1018,7 +1026,81 @@ let sheetDateStr = null;
 
 const todayObj = new Date();
 calYear = todayObj.getFullYear();
+
+// ---------- Back button / gesture navigation for modals & cards ----------
+// Every overlay (modal or day sheet) is registered here with the function
+// that actually performs its closing logic (hiding it + any cleanup).
+// Opening an overlay pushes a history entry; the hardware/gesture "back"
+// action then just pops that entry instead of leaving the app, and our
+// popstate listener runs the real close function.
+const overlayRegistry = {};
+let overlayStack = [];
+let suppressPopstate = false;
+
+function registerOverlay(id, closeFn){
+  overlayRegistry[id] = closeFn;
+}
+
+function pushOverlay(id){
+  overlayStack.push(id);
+  history.pushState({ overlay: id, depth: overlayStack.length }, '');
+}
+
+// Call this instead of the raw close function whenever the user closes an
+// overlay via UI (X button, tapping outside, Cancelar, or after Salvar).
+// It triggers history.back() so the browser/OS back gesture and our own
+// close buttons stay perfectly in sync with a single source of truth.
+function requestCloseOverlay(id){
+  const topIndex = overlayStack.lastIndexOf(id);
+  if(topIndex === -1){
+    // Not tracked (shouldn't normally happen) — just close directly.
+    if(overlayRegistry[id]) overlayRegistry[id]();
+    return;
+  }
+  suppressPopstate = false;
+  history.back();
+}
+
+window.addEventListener('popstate', ()=>{
+  if(suppressPopstate){ suppressPopstate = false; return; }
+  if(overlayStack.length){
+    const id = overlayStack.pop();
+    if(overlayRegistry[id]) overlayRegistry[id]();
+  }
+});
+
 calMonth = todayObj.getMonth();
+
+// ---------- Posição de navegação (aba + mês) ----------
+// O sistema (Android/iOS) pode descarregar a aba do app da memória quando ela
+// fica em segundo plano por um tempo — isso é uma limitação da plataforma,
+// não do app, e nenhum site consegue impedir totalmente. O que dá pra fazer é
+// lembrar onde o usuário estava e devolvê-lo pro mesmo lugar ao reabrir, em
+// vez de sempre cair na tela inicial — assim a sensação de "reiniciar" some.
+const UI_STATE_KEY = 'escalaUiState';
+function saveUiState(){
+  try{
+    const activeBtn = document.querySelector('nav.tabs button.active');
+    localStorage.setItem(UI_STATE_KEY, JSON.stringify({
+      tab: activeBtn ? activeBtn.dataset.tab : 'calendario',
+      calYear, calMonth
+    }));
+  }catch(e){ /* localStorage indisponível — ignora silenciosamente */ }
+}
+function restoreUiState(){
+  try{
+    const raw = localStorage.getItem(UI_STATE_KEY);
+    if(!raw) return;
+    const saved = JSON.parse(raw);
+    if(Number.isInteger(saved.calYear) && Number.isInteger(saved.calMonth)){
+      calYear = saved.calYear;
+      calMonth = saved.calMonth;
+    }
+    if(saved.tab && TAB_ORDER.includes(saved.tab)){
+      setActiveTabInstant(saved.tab);
+    }
+  }catch(e){ /* dado salvo corrompido — segue com o padrão (hoje) */ }
+}
 
 function fnById(id){ return FUNCTIONS.find(f => f.id === id); }
 function pickableFunctions(p){
@@ -1093,6 +1175,13 @@ function rosterPeopleFor(y, m){
 // firebase-config.js (carregado antes deste script) define window.firebaseConfig.
 firebase.initializeApp(window.firebaseConfig);
 const db = firebase.firestore();
+// Mantém uma cópia local (IndexedDB) dos dados. Assim, ao reabrir o app depois
+// que o sistema operacional descarregou a aba da memória, a tela aparece
+// quase instantaneamente com os últimos dados conhecidos, em vez de ficar
+// esperando a rede — reduzindo a sensação de "reiniciar do zero".
+db.enablePersistence({ synchronizeTabs: true }).catch((err)=>{
+  console.warn('Firestore offline persistence indisponível:', err.code);
+});
 const stateDocRef = db.collection('escala').doc('ops-data');
 
 let applyingRemoteState = false;
@@ -1169,6 +1258,22 @@ function isOff(personId, dateStr){
   const arr = state.offDays[personId] || [];
   return arr.includes(dateStr);
 }
+function isRequestedOff(personId, dateStr){
+  const arr = state.requestedOffDays[personId] || [];
+  return arr.includes(dateStr);
+}
+function markRequestedOff(personId, dateStr){
+  if(!state.requestedOffDays[personId]) state.requestedOffDays[personId] = [];
+  const arr = state.requestedOffDays[personId];
+  if(!arr.includes(dateStr)) arr.push(dateStr);
+  saveState();
+}
+function unmarkRequestedOff(personId, dateStr){
+  if(!state.requestedOffDays[personId]) return;
+  state.requestedOffDays[personId] = state.requestedOffDays[personId].filter(d=>d!==dateStr);
+  if(state.requestedOffDays[personId].length===0) delete state.requestedOffDays[personId];
+  saveState();
+}
 function isAbsent(personId, dateStr){
   const arr = state.absences[dateStr] || [];
   return arr.includes(personId);
@@ -1204,8 +1309,12 @@ function toggleOffDay(personId, dateStr){
   if(!state.offDays[personId]) state.offDays[personId] = [];
   const arr = state.offDays[personId];
   const idx = arr.indexOf(dateStr);
-  if(idx >= 0) arr.splice(idx,1);
-  else arr.push(dateStr);
+  if(idx >= 0){
+    arr.splice(idx,1);
+    unmarkRequestedOff(personId, dateStr);
+  }else{
+    arr.push(dateStr);
+  }
   saveState();
 }
 
@@ -1338,7 +1447,7 @@ function renderCalendar(){
     const isBusy = flights.length >= 2;
     const flightsHtml = flights.length > 0 ? `<span class="flight-count">${flights.length}</span>` : '';
 
-    html += `<div class="cal-day ${isToday?'today':''} ${isBusy && !isPast?'busy-day':''} ${isPast?'past-day':''}" data-date="${dateStr}">
+    html += `<div class="cal-day ${isToday?'today':''} ${isPast?'past-day':''}" data-date="${dateStr}">
       <div class="top-row">
         <span class="daynum">${d}</span>
         <div class="flights-row">${flightsHtml}</div>
@@ -1412,6 +1521,7 @@ function animateMonthChange(el, direction, updateFn){
 function stepMonth(direction){
   if(direction === 'next'){ calMonth++; if(calMonth > 11){ calMonth = 0; calYear++; } }
   else { calMonth--; if(calMonth < 0){ calMonth = 11; calYear--; } }
+  saveUiState();
 }
 
 function goCalendar(direction){
@@ -1491,13 +1601,15 @@ function openDaySheet(dateStr){
   sheetDateStr = dateStr;
   renderDaySheet(dateStr);
   document.getElementById('dayOverlay').classList.add('active');
+  pushOverlay('dayOverlay');
 }
 function closeDaySheet(){
   document.getElementById('dayOverlay').classList.remove('active');
 }
-document.getElementById('closeSheet').addEventListener('click', closeDaySheet);
+registerOverlay('dayOverlay', closeDaySheet);
+document.getElementById('closeSheet').addEventListener('click', ()=> requestCloseOverlay('dayOverlay'));
 document.getElementById('dayOverlay').addEventListener('click', (e)=>{
-  if(e.target.id === 'dayOverlay') closeDaySheet();
+  if(e.target.id === 'dayOverlay') requestCloseOverlay('dayOverlay');
 });
 
 function renderDaySheet(dateStr){
@@ -1609,6 +1721,7 @@ const TAB_ORDER = ['calendario', 'escala', 'voos', 'equipe'];
 function setActiveTabInstant(tabName){
   document.querySelectorAll('nav.tabs button').forEach(b=> b.classList.toggle('active', b.dataset.tab === tabName));
   document.querySelectorAll('.view').forEach(v=> v.classList.toggle('active', v.id === 'view-'+tabName));
+  saveUiState();
 }
 
 // Slides the outgoing tab out and the incoming tab in — same fluid-but-snappy
@@ -1825,10 +1938,12 @@ function openPairModal(){
   bSel.innerHTML = options;
   if(state.people.length > 1) bSel.selectedIndex = 1;
   document.getElementById('pairModalOverlay').classList.add('active');
+  pushOverlay('pairModalOverlay');
 }
 function closePairModal(){
   document.getElementById('pairModalOverlay').classList.remove('active');
 }
+registerOverlay('pairModalOverlay', closePairModal);
 document.getElementById('addPairBtn').addEventListener('click', ()=>{
   if(state.people.length < 2){
     showToast('Cadastre pelo menos duas pessoas na equipe antes de criar uma dupla.');
@@ -1836,9 +1951,9 @@ document.getElementById('addPairBtn').addEventListener('click', ()=>{
   }
   openPairModal();
 });
-document.getElementById('cancelPairBtn').addEventListener('click', closePairModal);
+document.getElementById('cancelPairBtn').addEventListener('click', ()=> requestCloseOverlay('pairModalOverlay'));
 document.getElementById('pairModalOverlay').addEventListener('click', (e)=>{
-  if(e.target.id === 'pairModalOverlay') closePairModal();
+  if(e.target.id === 'pairModalOverlay') requestCloseOverlay('pairModalOverlay');
 });
 document.getElementById('savePairBtn').addEventListener('click', ()=>{
   const a = document.getElementById('pairPersonASelect').value;
@@ -1857,7 +1972,7 @@ document.getElementById('savePairBtn').addEventListener('click', ()=>{
   state.coveragePairs.push({ id: 'pair_'+Date.now()+'_'+Math.floor(Math.random()*1000), a, b });
   saveState();
   renderPairList();
-  closePairModal();
+  requestCloseOverlay('pairModalOverlay');
   showToast('Dupla de cobertura criada.');
 });
 
@@ -1892,16 +2007,18 @@ function openPersonModal(personId){
   renderFnOptions(person ? (person.functions||[]) : []);
   document.getElementById('deletePersonBtn').style.display = person ? 'block' : 'none';
   document.getElementById('personModalOverlay').classList.add('active');
+  pushOverlay('personModalOverlay');
 }
 function closePersonModal(){
   document.getElementById('personModalOverlay').classList.remove('active');
   editingPersonId = null;
 }
+registerOverlay('personModalOverlay', closePersonModal);
 document.getElementById('addPersonBtn').addEventListener('click', ()=> openPersonModal(null));
 document.getElementById('escalaSearchInput').addEventListener('input', renderEscalaList);
-document.getElementById('cancelPersonBtn').addEventListener('click', closePersonModal);
+document.getElementById('cancelPersonBtn').addEventListener('click', ()=> requestCloseOverlay('personModalOverlay'));
 document.getElementById('personModalOverlay').addEventListener('click', (e)=>{
-  if(e.target.id === 'personModalOverlay') closePersonModal();
+  if(e.target.id === 'personModalOverlay') requestCloseOverlay('personModalOverlay');
 });
 
 document.getElementById('savePersonBtn').addEventListener('click', ()=>{
@@ -1921,7 +2038,7 @@ document.getElementById('savePersonBtn').addEventListener('click', ()=>{
   saveState();
   renderTeam();
   renderCalendar();
-  closePersonModal();
+  requestCloseOverlay('personModalOverlay');
   showToast('Salvo.');
 });
 
@@ -1930,6 +2047,7 @@ document.getElementById('deletePersonBtn').addEventListener('click', ()=>{
   if(!confirm('Remover esta pessoa da equipe? Isso também apaga as folgas programadas dela.')) return;
   state.people = state.people.filter(p=>p.id!==editingPersonId);
   delete state.offDays[editingPersonId];
+  delete state.requestedOffDays[editingPersonId];
   Object.keys(state.absences).forEach(date=>{
     state.absences[date] = state.absences[date].filter(id=>id!==editingPersonId);
     if(state.absences[date].length===0) delete state.absences[date];
@@ -1943,7 +2061,7 @@ document.getElementById('deletePersonBtn').addEventListener('click', ()=>{
   renderTeam();
   renderPairList();
   renderCalendar();
-  closePersonModal();
+  requestCloseOverlay('personModalOverlay');
   showToast('Pessoa removida.');
 });
 
@@ -1979,6 +2097,7 @@ function openOffDaysModal(personId){
   renderMiniCal();
   updateOffDaysEditUI();
   document.getElementById('offDaysModalOverlay').classList.add('active');
+  pushOverlay('offDaysModalOverlay');
 }
 function closeOffDaysModal(){
   document.getElementById('offDaysModalOverlay').classList.remove('active');
@@ -1987,9 +2106,10 @@ function closeOffDaysModal(){
   renderCalendar();
   renderEscalaList();
 }
-document.getElementById('closeOffDaysBtn').addEventListener('click', closeOffDaysModal);
+registerOverlay('offDaysModalOverlay', closeOffDaysModal);
+document.getElementById('closeOffDaysBtn').addEventListener('click', ()=> requestCloseOverlay('offDaysModalOverlay'));
 document.getElementById('offDaysModalOverlay').addEventListener('click', (e)=>{
-  if(e.target.id === 'offDaysModalOverlay') closeOffDaysModal();
+  if(e.target.id === 'offDaysModalOverlay') requestCloseOverlay('offDaysModalOverlay');
 });
 document.getElementById('offDaysEditToggle').addEventListener('click', ()=>{
   offDaysEditUnlocked = !offDaysEditUnlocked;
@@ -2017,6 +2137,7 @@ function renderMiniCal(){
   for(let d=1; d<=daysInMonth; d++){
     const dateStr = iso(miniYear, miniMonth, d);
     const off = offArr.includes(dateStr);
+    const requested = off && isRequestedOff(offDaysPersonId, dateStr);
     let violation = false;
     if(!off){
       const streak = consecutiveWorkStreak(offDaysPersonId, dateStr);
@@ -2030,9 +2151,10 @@ function renderMiniCal(){
       }
     }
     const noToggle = off ? atMin : atMax;
-    const title = violation ? `Dia além do limite de ${MAX_CONSECUTIVE_WORK_DAYS} dias seguidos`
+    const title = requested ? `Folga desejada — solicitada pelo funcionário`
+      : violation ? `Dia além do limite de ${MAX_CONSECUTIVE_WORK_DAYS} dias seguidos`
       : (noToggle ? (off ? `Mínimo de ${MIN_OFF_DAYS_PER_MONTH} folgas no mês` : `Máximo de ${MAX_OFF_DAYS_PER_MONTH} folgas no mês`) : '');
-    html += `<div class="mini-day ${off?'off':''} ${violation?'violation':''} ${noToggle?'no-toggle':''}" data-date="${dateStr}" title="${title}">${d}</div>`;
+    html += `<div class="mini-day ${off?'off':''} ${requested?'requested':''} ${violation?'violation':''} ${noToggle?'no-toggle':''}" data-date="${dateStr}" title="${title}">${d}</div>`;
   }
   grid.innerHTML = html;
 
@@ -2047,13 +2169,43 @@ function renderMiniCal(){
   }
   if(!offDaysEditUnlocked) grid.classList.add('locked'); else grid.classList.remove('locked');
   grid.querySelectorAll('.mini-day[data-date]').forEach(cell=>{
+    let pressTimer = null;
+    let longPressFired = false;
+
+    const cancelPress = ()=>{
+      if(pressTimer){ clearTimeout(pressTimer); pressTimer = null; }
+    };
+
+    const startPress = ()=>{
+      longPressFired = false;
+      cancelPress();
+      pressTimer = setTimeout(()=>{
+        longPressFired = true;
+        pressTimer = null;
+        handleLongPress(cell.dataset.date);
+      }, 2000);
+    };
+
+    cell.addEventListener('touchstart', startPress, { passive: true });
+    cell.addEventListener('touchend', cancelPress);
+    cell.addEventListener('touchmove', cancelPress);
+    cell.addEventListener('touchcancel', cancelPress);
+    cell.addEventListener('mousedown', startPress);
+    cell.addEventListener('mouseup', cancelPress);
+    cell.addEventListener('mouseleave', cancelPress);
+
     cell.addEventListener('click', ()=>{
+      if(longPressFired){ longPressFired = false; return; } // o toque que finalizou o long-press não deve também disparar o toggle normal
       if(!offDaysEditUnlocked){
         showToast('Toque no 🔒 para ativar a edição.');
         return;
       }
       const dateStr = cell.dataset.date;
       const wasOff = isOff(offDaysPersonId, dateStr);
+      const wasRequested = wasOff && isRequestedOff(offDaysPersonId, dateStr);
+      if(wasRequested){
+        if(!confirm(`Este dia é uma folga desejada — solicitada pelo próprio funcionário. Remover mesmo assim?`)) return;
+      }
       const countNow = offDaysCountInMonth(offDaysPersonId, miniYear, miniMonth);
       if(!wasOff && countNow >= MAX_OFF_DAYS_PER_MONTH){
         showToast(`Máximo de ${MAX_OFF_DAYS_PER_MONTH} folgas neste mês. Remova outra antes de adicionar.`);
@@ -2075,6 +2227,51 @@ function renderMiniCal(){
       renderCoverageConflictBanner();
     });
   });
+}
+
+// Segurar um dia por ~2s no mini-calendário de folgas para marcar/desmarcar
+// esse dia como "folga desejada" (pedida especificamente pelo funcionário).
+function handleLongPress(dateStr){
+  if(!offDaysEditUnlocked){
+    showToast('Toque no 🔒 para ativar a edição antes de marcar uma folga desejada.');
+    return;
+  }
+  const personId = offDaysPersonId;
+  const dateLabel = formatDateBR(dateStr);
+  const off = isOff(personId, dateStr);
+  const requested = off && isRequestedOff(personId, dateStr);
+
+  if(requested){
+    if(confirm(`Remover a marcação de folga desejada de ${dateLabel}? O dia continua de folga, só deixa de ser marcado como pedido do funcionário.`)){
+      unmarkRequestedOff(personId, dateStr);
+      renderMiniCal();
+      showToast('Marcação removida.');
+    }
+    return;
+  }
+
+  if(off){
+    if(confirm(`Marcar ${dateLabel} como folga desejada — pedida especificamente pelo funcionário?`)){
+      markRequestedOff(personId, dateStr);
+      renderMiniCal();
+      showToast('Folga desejada marcada.');
+    }
+    return;
+  }
+
+  // Dia ainda não é folga: perguntar se quer criar a folga já como desejada.
+  const countNow = offDaysCountInMonth(personId, miniYear, miniMonth);
+  if(countNow >= MAX_OFF_DAYS_PER_MONTH){
+    showToast(`Máximo de ${MAX_OFF_DAYS_PER_MONTH} folgas neste mês. Remova outra antes de adicionar.`);
+    return;
+  }
+  if(confirm(`Marcar ${dateLabel} como folga desejada — pedida especificamente pelo funcionário? Esse dia será registrado como folga.`)){
+    toggleOffDay(personId, dateStr);
+    markRequestedOff(personId, dateStr);
+    renderMiniCal();
+    renderCoverageConflictBanner();
+    showToast('Folga desejada marcada.');
+  }
 }
 document.getElementById('miniPrev').addEventListener('click', ()=>{
   miniMonth--; if(miniMonth<0){ miniMonth=11; miniYear--; }
@@ -2110,15 +2307,20 @@ function renderAirlineOptions(){
     });
   });
 }
+function closeAirlineModal(){
+  document.getElementById('airlineModalOverlay').classList.remove('active');
+}
+registerOverlay('airlineModalOverlay', closeAirlineModal);
 document.getElementById('addAirlineBtn').addEventListener('click', ()=>{
   renderAirlineOptions();
   document.getElementById('airlineModalOverlay').classList.add('active');
+  pushOverlay('airlineModalOverlay');
 });
 document.getElementById('cancelAirlineBtn').addEventListener('click', ()=>{
-  document.getElementById('airlineModalOverlay').classList.remove('active');
+  requestCloseOverlay('airlineModalOverlay');
 });
 document.getElementById('airlineModalOverlay').addEventListener('click', (e)=>{
-  if(e.target.id === 'airlineModalOverlay') document.getElementById('airlineModalOverlay').classList.remove('active');
+  if(e.target.id === 'airlineModalOverlay') requestCloseOverlay('airlineModalOverlay');
 });
 document.getElementById('saveAirlineBtn').addEventListener('click', ()=>{
   if(!selectedAirlineName){ showToast('Selecione uma companhia.'); return; }
@@ -2132,7 +2334,7 @@ document.getElementById('saveAirlineBtn').addEventListener('click', ()=>{
   saveState();
   renderVoosList();
   renderCalendar();
-  document.getElementById('airlineModalOverlay').classList.remove('active');
+  requestCloseOverlay('airlineModalOverlay');
   showToast('Companhia adicionada.');
 });
 
@@ -2148,6 +2350,7 @@ function openFlightDaysModal(airlineId){
   document.getElementById('flightMiniDowRow').innerHTML = DOW.map(d=>`<div class="mini-dow">${d}</div>`).join('');
   renderFlightMiniCal();
   document.getElementById('flightDaysModalOverlay').classList.add('active');
+  pushOverlay('flightDaysModalOverlay');
 }
 function closeFlightDaysModal(){
   document.getElementById('flightDaysModalOverlay').classList.remove('active');
@@ -2155,9 +2358,10 @@ function closeFlightDaysModal(){
   renderCalendar();
   renderVoosList();
 }
-document.getElementById('closeFlightDaysBtn').addEventListener('click', closeFlightDaysModal);
+registerOverlay('flightDaysModalOverlay', closeFlightDaysModal);
+document.getElementById('closeFlightDaysBtn').addEventListener('click', ()=> requestCloseOverlay('flightDaysModalOverlay'));
 document.getElementById('flightDaysModalOverlay').addEventListener('click', (e)=>{
-  if(e.target.id === 'flightDaysModalOverlay') closeFlightDaysModal();
+  if(e.target.id === 'flightDaysModalOverlay') requestCloseOverlay('flightDaysModalOverlay');
 });
 
 function renderFlightMiniCal(){
@@ -2191,6 +2395,7 @@ document.getElementById('flightMiniNext').addEventListener('click', ()=>{
 });
 
 // ---------- Init ----------
+restoreUiState();
 loadState();
 
 if('serviceWorker' in navigator){
