@@ -197,10 +197,17 @@
     flex-shrink: 0;
   }
 
+  .swipe-viewport{
+    overflow: hidden;
+    position: relative;
+    touch-action: pan-y;
+  }
+
   .cal-grid{
     display: grid;
     grid-template-columns: repeat(7, 1fr);
     gap: 6px;
+    will-change: transform, opacity;
   }
 
   .cal-dow{
@@ -636,6 +643,33 @@
   }
 
   /* Off-days mini calendar inside modal */
+  .off-days-head{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 6px;
+  }
+  .off-days-head h3{ margin: 0; }
+
+  .edit-toggle-btn{
+    width: 36px; height: 36px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--text-dim);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  }
+  .edit-toggle-btn.active{
+    border-color: var(--accent);
+    background: rgba(255,107,53,0.15);
+    color: var(--accent);
+  }
+
   .mini-cal-head{
     display: flex; justify-content: space-between; align-items: center;
     margin-bottom: 10px;
@@ -660,6 +694,7 @@
   }
   .mini-day.empty{ background: none; border: none; cursor: default; }
   .mini-day.off{ background: rgba(100,116,139,0.35); border-color: var(--c-folga); color: var(--text-dim); text-decoration: line-through; }
+  .mini-grid.locked .mini-day:not(.empty){ cursor: default; }
   .mini-hint{ font-size: 12px; color: var(--text-faint); margin-bottom: 14px; }
 
   .toast{
@@ -721,7 +756,9 @@
       </div>
     </div>
 
-    <div class="cal-grid" id="calGrid"></div>
+    <div class="swipe-viewport" id="calViewport">
+      <div class="cal-grid" id="calGrid"></div>
+    </div>
   </div>
 
   <!-- ESCALA VIEW -->
@@ -737,7 +774,9 @@
       </div>
     </div>
     <p class="mini-hint" style="margin-bottom:16px;">Cada mês é independente: inclua quem participa da escala deste mês e marque as folgas de cada um. Isso alimenta o calendário automaticamente.</p>
-    <div class="team-list" id="escalaList"></div>
+    <div class="swipe-viewport" id="escalaViewport">
+      <div class="team-list" id="escalaList"></div>
+    </div>
   </div>
 
   <!-- VOOS VIEW -->
@@ -806,8 +845,11 @@
 <!-- Off-days editor modal -->
 <div class="modal-overlay" id="offDaysModalOverlay">
   <div class="modal">
-    <h3 id="offDaysModalTitle">Editar folgas</h3>
-    <p class="mini-hint">Toque nos dias para marcar ou desmarcar como folga fixa.</p>
+    <div class="off-days-head">
+      <h3 id="offDaysModalTitle">Editar folgas</h3>
+      <button class="edit-toggle-btn" id="offDaysEditToggle" title="Toque para ativar a edição">🔒</button>
+    </div>
+    <p class="mini-hint" id="offDaysHint">Toque no cadeado para ativar a edição antes de alterar os dias.</p>
     <div class="mini-cal-head">
       <button class="icon-btn-sm" id="miniPrev">‹</button>
       <span id="miniMonthLabel">—</span>
@@ -1138,29 +1180,116 @@ function renderCalendar(){
   });
 }
 
-document.getElementById('prevMonth').addEventListener('click', ()=>{
-  calMonth--; if(calMonth < 0){ calMonth = 11; calYear--; }
-  renderCalendar();
-});
-document.getElementById('nextMonth').addEventListener('click', ()=>{
-  calMonth++; if(calMonth > 11){ calMonth = 0; calYear++; }
-  renderCalendar();
-});
+// ---------- Month transition animation + swipe navigation ----------
+// direction: 'next' (content slides out to the left, new content enters from the right)
+//            'prev' (content slides out to the right, new content enters from the left)
+function animateMonthChange(el, direction, updateFn){
+  if(!el || el.dataset.animating === '1') return;
+  el.dataset.animating = '1';
+
+  const OUT_MS = 140;
+  const IN_MS = 240;
+  const exitX = direction === 'next' ? -22 : 22;
+  const enterX = direction === 'next' ? 22 : -22;
+
+  el.style.transition = `transform ${OUT_MS}ms cubic-bezier(.4,0,1,1), opacity ${OUT_MS}ms ease`;
+  el.style.transform = `translateX(${exitX}px)`;
+  el.style.opacity = '0';
+
+  setTimeout(()=>{
+    updateFn();
+
+    el.style.transition = 'none';
+    el.style.transform = `translateX(${enterX}px)`;
+    el.style.opacity = '0';
+
+    // force reflow so the next transition actually animates
+    void el.offsetWidth;
+
+    el.style.transition = `transform ${IN_MS}ms cubic-bezier(.22,.61,.36,1), opacity ${IN_MS}ms ease`;
+    el.style.transform = 'translateX(0)';
+    el.style.opacity = '1';
+
+    setTimeout(()=>{ el.dataset.animating = '0'; }, IN_MS);
+  }, OUT_MS);
+}
+
+function stepMonth(direction){
+  if(direction === 'next'){ calMonth++; if(calMonth > 11){ calMonth = 0; calYear++; } }
+  else { calMonth--; if(calMonth < 0){ calMonth = 11; calYear--; } }
+}
+
+function goCalendar(direction){
+  animateMonthChange(document.getElementById('calGrid'), direction, ()=>{
+    stepMonth(direction);
+    renderCalendar();
+  });
+}
+function goEscala(direction){
+  animateMonthChange(document.getElementById('escalaList'), direction, ()=>{
+    stepMonth(direction);
+    renderCalendar();
+    renderEscalaList();
+  });
+}
+
+// Attaches drag/swipe navigation to a container. Fires onNext when the user
+// drags to the left, onPrev when dragging to the right. Fluid but snappy —
+// not instant, not sluggish (handled by animateMonthChange's timings above).
+function attachSwipeNav(el, onNext, onPrev){
+  if(!el) return;
+  const THRESHOLD = 42; // min horizontal distance (px) to count as an intentional swipe
+  let startX = 0, startY = 0, tracking = false, isHorizontal = false;
+
+  function onStart(x, y){
+    startX = x; startY = y;
+    tracking = true;
+    isHorizontal = false;
+  }
+  function onMove(x, y, evt){
+    if(!tracking) return false;
+    const dx = x - startX, dy = y - startY;
+    if(!isHorizontal && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)){
+      isHorizontal = true;
+    }
+    if(isHorizontal && evt && evt.cancelable) evt.preventDefault();
+    return isHorizontal;
+  }
+  function onEnd(x){
+    if(!tracking) return;
+    tracking = false;
+    if(!isHorizontal) return;
+    const dx = x - startX;
+    if(Math.abs(dx) < THRESHOLD) return;
+    if(dx < 0) onNext(); else onPrev();
+  }
+
+  el.addEventListener('touchstart', (e)=>{
+    if(e.touches.length !== 1) return;
+    onStart(e.touches[0].clientX, e.touches[0].clientY);
+  }, {passive: true});
+  el.addEventListener('touchmove', (e)=>{
+    if(e.touches.length !== 1) return;
+    onMove(e.touches[0].clientX, e.touches[0].clientY, e);
+  }, {passive: false});
+  el.addEventListener('touchend', (e)=>{
+    onEnd(e.changedTouches[0].clientX);
+  });
+  el.addEventListener('touchcancel', ()=>{ tracking = false; isHorizontal = false; });
+}
+
+document.getElementById('prevMonth').addEventListener('click', ()=> goCalendar('prev'));
+document.getElementById('nextMonth').addEventListener('click', ()=> goCalendar('next'));
 document.getElementById('todayBtn').addEventListener('click', ()=>{
   calMonth = todayObj.getMonth(); calYear = todayObj.getFullYear();
   renderCalendar();
 });
 
-document.getElementById('escalaPrevMonth').addEventListener('click', ()=>{
-  calMonth--; if(calMonth < 0){ calMonth = 11; calYear--; }
-  renderCalendar();
-  renderEscalaList();
-});
-document.getElementById('escalaNextMonth').addEventListener('click', ()=>{
-  calMonth++; if(calMonth > 11){ calMonth = 0; calYear++; }
-  renderCalendar();
-  renderEscalaList();
-});
+document.getElementById('escalaPrevMonth').addEventListener('click', ()=> goEscala('prev'));
+document.getElementById('escalaNextMonth').addEventListener('click', ()=> goEscala('next'));
+
+attachSwipeNav(document.getElementById('calViewport'), ()=> goCalendar('next'), ()=> goCalendar('prev'));
+attachSwipeNav(document.getElementById('escalaViewport'), ()=> goEscala('next'), ()=> goEscala('prev'));
 
 // ---------- Day sheet ----------
 function openDaySheet(dateStr){
@@ -1480,24 +1609,53 @@ document.getElementById('deletePersonBtn').addEventListener('click', ()=>{
 });
 
 // ---------- Off-days modal ----------
+let offDaysEditUnlocked = false;
+
+function updateOffDaysEditUI(){
+  const btn = document.getElementById('offDaysEditToggle');
+  const hint = document.getElementById('offDaysHint');
+  const grid = document.getElementById('miniGrid');
+  if(offDaysEditUnlocked){
+    btn.classList.add('active');
+    btn.textContent = '✏️';
+    btn.title = 'Edição ativada — toque para bloquear novamente';
+    hint.textContent = 'Edição ativada: toque nos dias para marcar ou desmarcar folga.';
+    grid.classList.remove('locked');
+  }else{
+    btn.classList.remove('active');
+    btn.textContent = '🔒';
+    btn.title = 'Toque para ativar a edição';
+    hint.textContent = 'Toque no cadeado para ativar a edição antes de alterar os dias.';
+    grid.classList.add('locked');
+  }
+}
+
 function openOffDaysModal(personId){
   offDaysPersonId = personId;
+  offDaysEditUnlocked = false;
   const person = state.people.find(p=>p.id===personId);
   document.getElementById('offDaysModalTitle').textContent = `Folgas de ${person.name}`;
   miniYear = calYear; miniMonth = calMonth;
   renderMiniDow();
   renderMiniCal();
+  updateOffDaysEditUI();
   document.getElementById('offDaysModalOverlay').classList.add('active');
 }
 function closeOffDaysModal(){
   document.getElementById('offDaysModalOverlay').classList.remove('active');
   offDaysPersonId = null;
+  offDaysEditUnlocked = false;
   renderCalendar();
   renderEscalaList();
 }
 document.getElementById('closeOffDaysBtn').addEventListener('click', closeOffDaysModal);
 document.getElementById('offDaysModalOverlay').addEventListener('click', (e)=>{
   if(e.target.id === 'offDaysModalOverlay') closeOffDaysModal();
+});
+document.getElementById('offDaysEditToggle').addEventListener('click', ()=>{
+  offDaysEditUnlocked = !offDaysEditUnlocked;
+  updateOffDaysEditUI();
+  if(offDaysEditUnlocked) showToast('Edição ativada. Toque nos dias para alterar.');
 });
 
 function renderMiniDow(){
@@ -1518,8 +1676,13 @@ function renderMiniCal(){
     html += `<div class="mini-day ${off?'off':''}" data-date="${dateStr}">${d}</div>`;
   }
   grid.innerHTML = html;
+  if(!offDaysEditUnlocked) grid.classList.add('locked'); else grid.classList.remove('locked');
   grid.querySelectorAll('.mini-day[data-date]').forEach(cell=>{
     cell.addEventListener('click', ()=>{
+      if(!offDaysEditUnlocked){
+        showToast('Toque no 🔒 para ativar a edição.');
+        return;
+      }
       toggleOffDay(offDaysPersonId, cell.dataset.date);
       renderMiniCal();
     });
