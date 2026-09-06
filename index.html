@@ -400,6 +400,20 @@
   .person-info{ display: flex; flex-direction: column; gap: 3px; }
   .person-name{ font-size: 14px; font-weight: 600; }
   .person-reg{ font-size: 12px; font-weight: 500; color: var(--text-faint); }
+  .person-reg-wrap{ display:inline-flex; align-items:center; gap:6px; }
+  .copy-reg-btn{
+    background: rgba(255,255,255,0.06);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    width: 22px; height: 22px;
+    font-size: 12px;
+    line-height: 1;
+    display:inline-flex; align-items:center; justify-content:center;
+    cursor: pointer;
+    padding: 0;
+  }
+  .copy-reg-btn:hover{ border-color: var(--c-disponivel); }
+  .copy-reg-btn:active{ transform: scale(0.92); }
   .fn-chips{ display: flex; gap: 5px; flex-wrap: wrap; }
   .fn-chip{
     font-size: 10.5px;
@@ -1472,9 +1486,11 @@ function renderCoverageConflictBanner(){
   el.innerHTML = '';
   if(!isMonthPublished(calYear, calMonth) || !state.coveragePairs.length) return;
   const daysInMonth = new Date(calYear, calMonth+1, 0).getDate();
+  const todayStr = iso(todayObj.getFullYear(), todayObj.getMonth(), todayObj.getDate());
   const items = [];
   for(let d=1; d<=daysInMonth; d++){
     const dateStr = iso(calYear, calMonth, d);
+    if(dateStr < todayStr) continue; // dia já passou — não mostra mais o aviso
     state.coveragePairs.forEach(pair=>{
       if(isOff(pair.a, dateStr) && isOff(pair.b, dateStr)){
         items.push(`${personName(pair.a)} e ${personName(pair.b)} estão de folga no dia ${formatDateBR(dateStr)}`);
@@ -1679,7 +1695,7 @@ function renderDaySheet(dateStr){
     return `<div class="${rowClass}">
       <div class="person-info">
         <span class="person-name">${p.name}</span>
-        ${p.registration ? `<span class="person-reg">${p.registration}</span>` : ''}
+        ${p.registration ? `<span class="person-reg-wrap"><span class="person-reg">${p.registration}</span><button class="copy-reg-btn" data-reg="${p.registration}" title="Copiar matrícula" aria-label="Copiar matrícula">📋</button></span>` : ''}
         <div class="fn-chips">${chipHtml(p, available)}</div>
         ${(available && multi) ? '<span class="status-tag" style="color:var(--text-faint);">Toque na função de hoje</span>' : ''}
       </div>
@@ -1712,6 +1728,17 @@ function renderDaySheet(dateStr){
   });
   body.querySelectorAll('.fn-chip-pick').forEach(chip=>{
     chip.addEventListener('click', ()=> setAssignedFn(chip.dataset.pid, dateStr, chip.dataset.fid) );
+  });
+  body.querySelectorAll('.copy-reg-btn').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const reg = btn.dataset.reg;
+      try{
+        await navigator.clipboard.writeText(reg);
+        showToast('Matrícula copiada.');
+      }catch(e){
+        showToast('Não foi possível copiar. Tente novamente.');
+      }
+    });
   });
 }
 
