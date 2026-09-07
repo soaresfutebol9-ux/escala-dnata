@@ -207,6 +207,12 @@
     touch-action: pan-y;
   }
 
+  #calViewport{
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px 10px;
+  }
+
   .cal-grid{
     display: grid;
     grid-template-columns: repeat(7, 1fr);
@@ -399,6 +405,8 @@
 
   .person-info{ display: flex; flex-direction: column; gap: 3px; }
   .person-name{ font-size: 14px; font-weight: 600; }
+  .person-name.clickable-name{ cursor: pointer; }
+  .person-name.clickable-name:active{ opacity: 0.6; }
   .person-reg{ font-size: 12px; font-weight: 500; color: var(--text-faint); }
   .person-reg-wrap{ display:inline-flex; align-items:center; gap:6px; }
   .copy-reg-btn{
@@ -1694,7 +1702,7 @@ function renderDaySheet(dateStr){
     const showFaltaBtn = !off || absent; // esconde "Marcar falta" quando a pessoa está de folga (e ainda não tem falta marcada)
     return `<div class="${rowClass}">
       <div class="person-info">
-        <span class="person-name">${p.name}</span>
+        <span class="person-name clickable-name" data-pid="${p.id}">${p.name}</span>
         ${p.registration ? `<span class="person-reg-wrap"><span class="person-reg">${p.registration}</span><button class="copy-reg-btn" data-reg="${p.registration}" title="Copiar matrícula" aria-label="Copiar matrícula">📋</button></span>` : ''}
         <div class="fn-chips">${chipHtml(p, available)}</div>
         ${(available && multi) ? '<span class="status-tag" style="color:var(--text-faint);">Toque na função de hoje</span>' : ''}
@@ -1739,6 +1747,9 @@ function renderDaySheet(dateStr){
         showToast('Não foi possível copiar. Tente novamente.');
       }
     });
+  });
+  body.querySelectorAll('.clickable-name').forEach(el=>{
+    el.addEventListener('click', ()=> openOffDaysModal(el.dataset.pid));
   });
 }
 
