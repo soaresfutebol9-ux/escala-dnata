@@ -852,7 +852,9 @@
   <div class="view" id="view-escala">
     <div class="team-head">
       <h2>Escala do mês</h2>
+      <button class="btn-primary" id="importPdfBtn">📄 Importar PDF</button>
     </div>
+    <input type="file" id="importPdfInput" accept="application/pdf" style="display:none;">
     <div class="escala-month-bar">
       <h3 id="escalaMonthLabel">—</h3>
       <div class="month-nav">
@@ -896,6 +898,18 @@
   </div>
 
 </main>
+
+<!-- Import PDF review modal -->
+<div class="modal-overlay" id="importReviewModalOverlay">
+  <div class="modal" style="max-width:480px;">
+    <h3>Revisar importação</h3>
+    <div id="importReviewBody" style="max-height:60vh; overflow-y:auto; margin:12px 0;"></div>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="cancelImportBtn">Cancelar</button>
+      <button class="btn-primary" id="confirmImportBtn">Confirmar importação</button>
+    </div>
+  </div>
+</div>
 
 <!-- Add coverage pair modal -->
 <div class="modal-overlay" id="pairModalOverlay">
@@ -1018,6 +1032,7 @@
 <div class="toast" id="toast"></div>
 
 <!-- Firebase (banco de dados na nuvem) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <script src="firebase-config.js"></script>
@@ -1197,6 +1212,9 @@ function rosterPeopleFor(y, m){
 // Um único documento guarda todo o estado do app, compartilhado por toda a equipe.
 // firebase-config.js (carregado antes deste script) define window.firebaseConfig.
 firebase.initializeApp(window.firebaseConfig);
+if(window.pdfjsLib){
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
 const db = firebase.firestore();
 // Mantém uma cópia local (IndexedDB) dos dados. Assim, ao reabrir o app depois
 // que o sistema operacional descarregou a aba da memória, a tela aparece
@@ -2442,6 +2460,264 @@ document.getElementById('flightMiniPrev').addEventListener('click', ()=>{
 document.getElementById('flightMiniNext').addEventListener('click', ()=>{
   flightMiniMonth++; if(flightMiniMonth>11){ flightMiniMonth=0; flightMiniYear++; }
   renderFlightMiniCal();
+});
+
+// ---------- Importar escala de um PDF (dnata) ----------
+// Lê o PDF inteiramente no navegador (nenhum dado sai do celular), localiza a
+// linha de cabeçalho com os números dos dias (01, 02, 03...), localiza cada
+// colaborador pela matrícula e procura, na linha dele, células cujo texto seja
+// EXATAMENTE "F" (folga regulamentar) ou "FA" (folga agrupada). Qualquer outro
+// código (A9, B, J, CH, etc.) é deliberadamente ignorado.
+const MONTH_NAMES_PT = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+
+async function extractPdfTextItems(file){
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  const items = [];
+  for(let pageNum=1; pageNum<=pdf.numPages; pageNum++){
+    const page = await pdf.getPage(pageNum);
+    const viewport = page.getViewport({ scale: 1 });
+    const content = await page.getTextContent();
+    content.items.forEach(it=>{
+      const text = (it.str || '').trim();
+      if(!text) return;
+      items.push({
+        text,
+        x: it.transform[4],
+        top: viewport.height - it.transform[5], // topo->baixo, igual pdfplumber
+        page: pageNum
+      });
+    });
+  }
+  return items;
+}
+
+function groupItemsIntoRows(items, tolerance){
+  const sorted = [...items].sort((a,b)=> a.page - b.page || a.top - b.top || a.x - b.x);
+  const rows = [];
+  sorted.forEach(it=>{
+    let row = rows.find(r => r.page===it.page && Math.abs(r.top - it.top) <= tolerance);
+    if(!row){
+      row = { page: it.page, top: it.top, items: [] };
+      rows.push(row);
+    }
+    row.items.push(it);
+  });
+  return rows;
+}
+
+function findDayHeaderRow(rows){
+  let best = null;
+  rows.forEach(row=>{
+    const nums = row.items
+      .filter(it => /^\d{1,2}$/.test(it.text))
+      .map(it => ({ day: parseInt(it.text,10), x: it.x }))
+      .sort((a,b)=> a.x - b.x);
+    if(nums.length < 15) return;
+    // valida que forma uma sequência crescente 1,2,3... (permite pequenas falhas)
+    let hits = 0;
+    nums.forEach((n,i)=>{ if(n.day === i+1) hits++; });
+    if(hits >= nums.length - 2 && nums[0].day === 1 && (!best || nums.length > best.nums.length)){
+      best = { row, nums };
+    }
+  });
+  return best;
+}
+
+function detectMonthYear(items){
+  let month = null, year = null;
+  for(const it of items){
+    const lower = it.text.toLowerCase();
+    const idx = MONTH_NAMES_PT.findIndex(m => lower === m || lower.startsWith(m.slice(0,4)));
+    if(idx >= 0){ month = idx; break; }
+  }
+  const yearItem = items.find(it => /^20\d{2}$/.test(it.text));
+  if(yearItem) year = parseInt(yearItem.text, 10);
+  return { month, year };
+}
+
+async function parseEscalaPdf(file){
+  const items = await extractPdfTextItems(file);
+  const rows = groupItemsIntoRows(items, 3);
+  const headerInfo = findDayHeaderRow(rows);
+  if(!headerInfo) throw new Error('Não encontrei a linha com os números dos dias (01, 02, 03...) nesse PDF.');
+  const dayCols = headerInfo.nums; // [{day, x}], já ordenado por x
+  const spacing = dayCols.length > 1
+    ? (dayCols[dayCols.length-1].x - dayCols[0].x) / (dayCols[dayCols.length-1].day - dayCols[0].day)
+    : 9;
+  const tolerance = spacing / 2;
+  const totalDaysInPdf = dayCols[dayCols.length-1].day;
+
+  const { month: detectedMonth, year: detectedYear } = detectMonthYear(items);
+
+  const peopleFound = []; // { registration, name, days:[int,...] }
+  rows.forEach(row=>{
+    if(row.page !== headerInfo.row.page) return;
+    if(row.top <= headerInfo.row.top) return; // só linhas abaixo do cabeçalho
+    // matrícula fica sempre bem à esquerda da tabela — usamos a posição x do
+    // primeiro item numérico de 5 a 7 dígitos entre os itens mais à esquerda da linha.
+    const leftMost = [...row.items].sort((a,b)=>a.x-b.x)[0];
+    const matriculaItem = /^\d{5,7}$/.test(leftMost?.text) ? leftMost : null;
+    if(!matriculaItem) return;
+    const registration = matriculaItem.text;
+    const nameItems = row.items
+      .filter(it => it.x > matriculaItem.x && it.x < dayCols[0].x - spacing*2 && /[A-Za-zÀ-ÿ]/.test(it.text))
+      .sort((a,b)=>a.x-b.x);
+    const name = nameItems.map(it=>it.text).join(' ');
+
+    const fDays = [];
+    row.items.forEach(it=>{
+      if(it.text !== 'F' && it.text !== 'FA') return;
+      let closest = null, closestDist = Infinity;
+      dayCols.forEach(dc=>{
+        const dist = Math.abs(dc.x - it.x);
+        if(dist < closestDist){ closestDist = dist; closest = dc; }
+      });
+      if(closest && closestDist <= tolerance) fDays.push(closest.day);
+    });
+    if(fDays.length){
+      const existing = peopleFound.find(p=>p.registration===registration);
+      if(existing) existing.days.push(...fDays);
+      else peopleFound.push({ registration, name, days: [...new Set(fDays)].sort((a,b)=>a-b) });
+    }
+  });
+
+  return { peopleFound, detectedMonth, detectedYear, totalDaysInPdf };
+}
+
+let pendingImport = null; // guarda o resultado processado até o usuário confirmar
+
+document.getElementById('importPdfBtn').addEventListener('click', ()=>{
+  if(!window.pdfjsLib){
+    showToast('Não foi possível carregar o leitor de PDF. Confira sua conexão e tente de novo.');
+    return;
+  }
+  document.getElementById('importPdfInput').click();
+});
+
+document.getElementById('importPdfInput').addEventListener('change', async (e)=>{
+  const file = e.target.files[0];
+  e.target.value = '';
+  if(!file) return;
+  showToast('Lendo o PDF...');
+  try{
+    const result = await parseEscalaPdf(file);
+    buildImportReview(result);
+  }catch(err){
+    console.error('Falha ao importar PDF:', err);
+    showToast('Não consegui ler esse PDF. Confira se é a escala no mesmo formato de sempre.');
+  }
+});
+
+function buildImportReview(result){
+  const { peopleFound, detectedMonth, detectedYear, totalDaysInPdf } = result;
+
+  // Casa cada matrícula encontrada no PDF com uma pessoa já cadastrada no app.
+  const matched = [];
+  const unmatchedRegs = [];
+  peopleFound.forEach(pf=>{
+    const person = state.people.find(p => (p.registration||'').trim() === pf.registration.trim());
+    if(person) matched.push({ person, days: pf.days, pdfName: pf.name });
+    else unmatchedRegs.push(pf);
+  });
+  const matchedIds = new Set(matched.map(m=>m.person.id));
+  const noDataFound = state.people.filter(p => p.registration && !matchedIds.has(p.id));
+
+  pendingImport = { matched, month: detectedMonth, year: detectedYear, totalDaysInPdf };
+
+  const monthOptions = MONTH_NAMES_PT.map((m,i)=>
+    `<option value="${i}" ${i===detectedMonth?'selected':''}>${m.charAt(0).toUpperCase()+m.slice(1)}</option>`
+  ).join('');
+  const yearVal = detectedYear || todayObj.getFullYear();
+
+  let html = `
+    <div style="margin-bottom:14px;">
+      <label style="font-size:12px; color:var(--text-faint); display:block; margin-bottom:4px;">Mês detectado no PDF</label>
+      <div style="display:flex; gap:8px;">
+        <select id="importMonthSelect" style="flex:1; background:var(--surface-2); color:var(--text); border:1px solid var(--border); border-radius:8px; padding:8px;">${monthOptions}</select>
+        <input type="number" id="importYearInput" value="${yearVal}" style="width:90px; background:var(--surface-2); color:var(--text); border:1px solid var(--border); border-radius:8px; padding:8px;">
+      </div>
+      <p class="mini-hint" style="margin-top:6px;">Confira se é o mês certo antes de confirmar.</p>
+    </div>
+  `;
+
+  html += `<p class="mini-hint" style="margin-bottom:10px;">"F" (folga) e "FA" (folga agrupada) contam como folga. Outros códigos (A9, B, J, CH...) não são tocados.</p>`;
+
+  if(matched.length){
+    html += `<p style="font-weight:600; margin-bottom:8px;">Folgas encontradas (${matched.length} pessoa${matched.length>1?'s':''})</p>`;
+    matched.forEach(m=>{
+      html += `<div class="team-card" style="margin-bottom:8px;">
+        <div class="info">
+          <span class="name">${m.person.name}</span>
+          <span class="status-tag" style="color:var(--text-faint);">${m.days.length} dia(s): ${m.days.join(', ')}</span>
+        </div>
+      </div>`;
+    });
+  } else {
+    html += `<p class="mini-hint">Nenhuma folga (F) encontrada pra ninguém já cadastrado. Confira se é o PDF certo.</p>`;
+  }
+
+  if(noDataFound.length){
+    html += `<p style="font-weight:600; margin:14px 0 8px; color:var(--c-falta);">⚠️ Sem dados no PDF pra ${noDataFound.length} pessoa(s) já cadastrada(s)</p>`;
+    html += `<p class="mini-hint" style="margin-bottom:8px;">${noDataFound.map(p=>p.name).join(', ')}</p>`;
+  }
+
+  if(unmatchedRegs.length){
+    html += `<p style="font-weight:600; margin:14px 0 8px; color:var(--text-faint);">Matrículas no PDF sem cadastro no app</p>`;
+    html += `<p class="mini-hint">${unmatchedRegs.map(u=>`${u.registration} (${u.name||'sem nome'})`).join(', ')}</p>`;
+  }
+
+  document.getElementById('importReviewBody').innerHTML = html;
+  document.getElementById('importReviewModalOverlay').classList.add('active');
+  pushOverlay('importReviewModalOverlay');
+}
+
+function closeImportReviewModal(){
+  document.getElementById('importReviewModalOverlay').classList.remove('active');
+  pendingImport = null;
+}
+registerOverlay('importReviewModalOverlay', closeImportReviewModal);
+document.getElementById('cancelImportBtn').addEventListener('click', ()=> requestCloseOverlay('importReviewModalOverlay'));
+document.getElementById('importReviewModalOverlay').addEventListener('click', (e)=>{
+  if(e.target.id === 'importReviewModalOverlay') requestCloseOverlay('importReviewModalOverlay');
+});
+
+document.getElementById('confirmImportBtn').addEventListener('click', ()=>{
+  if(!pendingImport || !pendingImport.matched.length){
+    showToast('Nada pra importar.');
+    return;
+  }
+  const month = parseInt(document.getElementById('importMonthSelect').value, 10);
+  const year = parseInt(document.getElementById('importYearInput').value, 10);
+  if(!Number.isInteger(month) || !Number.isInteger(year) || year < 2020 || year > 2100){
+    showToast('Confira o mês e o ano antes de confirmar.');
+    return;
+  }
+  const daysInTargetMonth = new Date(year, month+1, 0).getDate();
+
+  let addedTotal = 0, alreadyOffTotal = 0, skippedOutOfRange = 0;
+  pendingImport.matched.forEach(m=>{
+    if(!state.offDays[m.person.id]) state.offDays[m.person.id] = [];
+    const arr = state.offDays[m.person.id];
+    m.days.forEach(day=>{
+      if(day < 1 || day > daysInTargetMonth){ skippedOutOfRange++; return; }
+      const dateStr = iso(year, month, day);
+      if(arr.includes(dateStr)) alreadyOffTotal++;
+      else { arr.push(dateStr); addedTotal++; }
+    });
+    // Garante que essa pessoa também participa da escala desse mês.
+    const key = monthKey(year, month);
+    if(!state.monthRosters[key]) state.monthRosters[key] = [];
+    if(!state.monthRosters[key].includes(m.person.id)) state.monthRosters[key].push(m.person.id);
+  });
+
+  saveState();
+  calYear = year; calMonth = month;
+  renderCalendar();
+  renderEscalaList();
+  renderTeam();
+  showToast(`Importado: ${addedTotal} folga(s) nova(s) adicionada(s)${alreadyOffTotal ? `, ${alreadyOffTotal} já estavam marcadas` : ''}.`);
+  requestCloseOverlay('importReviewModalOverlay');
 });
 
 // ---------- Init ----------
