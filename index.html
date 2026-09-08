@@ -1059,6 +1059,7 @@ let selectedAirlineName = null;
 let calYear, calMonth; // 0-indexed month
 let miniYear, miniMonth;
 let editingPersonId = null;
+let importPrefillActive = false; // true enquanto o modal de pessoa foi aberto a partir da revisão de importação de PDF
 let offDaysPersonId = null;
 let sheetDateStr = null;
 
@@ -2080,6 +2081,21 @@ function openPersonModal(personId){
 function closePersonModal(){
   document.getElementById('personModalOverlay').classList.remove('active');
   editingPersonId = null;
+  importPrefillActive = false;
+}
+// Abre o modal de "adicionar pessoa" já com nome e matrícula preenchidos,
+// vindos de uma matrícula do PDF que não existe no app ainda. O usuário só
+// precisa escolher a função e salvar.
+function openPersonModalForImport(registration, name){
+  importPrefillActive = true;
+  editingPersonId = null;
+  document.getElementById('personModalTitle').textContent = 'Adicionar pessoa (do PDF)';
+  document.getElementById('personNameInput').value = name || '';
+  document.getElementById('personRegInput').value = registration || '';
+  renderFnOptions([]);
+  document.getElementById('deletePersonBtn').style.display = 'none';
+  document.getElementById('personModalOverlay').classList.add('active');
+  pushOverlay('personModalOverlay');
 }
 registerOverlay('personModalOverlay', closePersonModal);
 document.getElementById('addPersonBtn').addEventListener('click', ()=> openPersonModal(null));
@@ -2108,6 +2124,10 @@ document.getElementById('savePersonBtn').addEventListener('click', ()=>{
   renderCalendar();
   requestCloseOverlay('personModalOverlay');
   showToast('Salvo.');
+  if(importPrefillActive){
+    importPrefillActive = false;
+    if(pendingImport && pendingImport.result) renderImportReviewBody(pendingImport.result);
+  }
 });
 
 document.getElementById('deletePersonBtn').addEventListener('click', ()=>{
@@ -2666,8 +2686,15 @@ function renderImportMatchedList(){
   container.innerHTML = html;
 }
 
-function buildImportReview(result){
+function renderImportReviewBody(result){
   const { peopleFound, detectedMonth, detectedYear, totalDaysInPdf } = result;
+
+  // Se já existe seleção de mês/ano na tela (ex: usuário mudou, ou estamos
+  // re-renderizando após cadastrar alguém), preserva o que já estava escolhido.
+  const prevMonthSel = document.getElementById('importMonthSelect');
+  const prevYearInput = document.getElementById('importYearInput');
+  const currentMonth = prevMonthSel ? parseInt(prevMonthSel.value, 10) : detectedMonth;
+  const currentYear = prevYearInput ? parseInt(prevYearInput.value, 10) : (detectedYear || todayObj.getFullYear());
 
   // Casa cada matrícula encontrada no PDF com uma pessoa já cadastrada no app.
   const matched = [];
@@ -2681,19 +2708,18 @@ function buildImportReview(result){
   const matchedIds = new Set(matched.map(m=>m.person.id));
   const noDataFound = state.people.filter(p => p.registration && !matchedIds.has(p.id));
 
-  pendingImport = { matched, month: detectedMonth, year: detectedYear, totalDaysInPdf };
+  pendingImport = { matched, month: currentMonth, year: currentYear, totalDaysInPdf, result };
 
   const monthOptions = MONTH_NAMES_PT.map((m,i)=>
-    `<option value="${i}" ${i===detectedMonth?'selected':''}>${m.charAt(0).toUpperCase()+m.slice(1)}</option>`
+    `<option value="${i}" ${i===currentMonth?'selected':''}>${m.charAt(0).toUpperCase()+m.slice(1)}</option>`
   ).join('');
-  const yearVal = detectedYear || todayObj.getFullYear();
 
   let html = `
     <div style="margin-bottom:14px;">
       <label style="font-size:12px; color:var(--text-faint); display:block; margin-bottom:4px;">Mês detectado no PDF</label>
       <div style="display:flex; gap:8px;">
         <select id="importMonthSelect" style="flex:1; background:var(--surface-2); color:var(--text); border:1px solid var(--border); border-radius:8px; padding:8px;">${monthOptions}</select>
-        <input type="number" id="importYearInput" value="${yearVal}" style="width:90px; background:var(--surface-2); color:var(--text); border:1px solid var(--border); border-radius:8px; padding:8px;">
+        <input type="number" id="importYearInput" value="${currentYear}" style="width:90px; background:var(--surface-2); color:var(--text); border:1px solid var(--border); border-radius:8px; padding:8px;">
       </div>
       <p class="mini-hint" style="margin-top:6px;">Confira se é o mês certo antes de confirmar.</p>
     </div>
@@ -2709,14 +2735,29 @@ function buildImportReview(result){
   }
 
   if(unmatchedRegs.length){
-    html += `<p style="font-weight:600; margin:14px 0 8px; color:var(--text-faint);">Matrículas no PDF sem cadastro no app</p>`;
-    html += `<p class="mini-hint">${unmatchedRegs.map(u=>`${u.registration} (${u.name||'sem nome'})`).join(', ')}</p>`;
+    html += `<p style="font-weight:600; margin:14px 0 8px; color:var(--text-faint);">Matrículas no PDF sem cadastro no app — cadastre pra incluir as folgas dela(s)</p>`;
+    unmatchedRegs.forEach(u=>{
+      html += `<div class="team-card" style="margin-bottom:8px;">
+        <div class="info">
+          <span class="name">${u.name || 'Sem nome'}</span>
+          <span class="status-tag" style="color:var(--text-faint);">Matrícula ${u.registration} · ${u.days.length} dia(s) de folga no PDF</span>
+        </div>
+        <button class="btn-secondary" data-add-reg="${u.registration}" data-add-name="${u.name||''}">+ Cadastrar</button>
+      </div>`;
+    });
   }
 
   document.getElementById('importReviewBody').innerHTML = html;
   renderImportMatchedList();
   document.getElementById('importMonthSelect').addEventListener('change', renderImportMatchedList);
   document.getElementById('importYearInput').addEventListener('input', renderImportMatchedList);
+  document.getElementById('importReviewBody').querySelectorAll('[data-add-reg]').forEach(btn=>{
+    btn.addEventListener('click', ()=> openPersonModalForImport(btn.dataset.addReg, btn.dataset.addName));
+  });
+}
+
+function buildImportReview(result){
+  renderImportReviewBody(result);
   document.getElementById('importReviewModalOverlay').classList.add('active');
   pushOverlay('importReviewModalOverlay');
 }
