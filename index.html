@@ -2513,15 +2513,21 @@ async function extractPdfTextItems(file){
 }
 
 function groupItemsIntoRows(items, tolerance){
+  // Encadeamento: cada item entra na linha se estiver perto do ÚLTIMO item já
+  // agrupado nela (não sempre do primeiro). Isso evita que uma linha se
+  // "quebre" em duas quando o conteúdo da célula (matrícula, código de turno
+  // etc.) fica alguns pontos acima ou abaixo do restante da mesma linha visual.
   const sorted = [...items].sort((a,b)=> a.page - b.page || a.top - b.top || a.x - b.x);
   const rows = [];
+  let current = null;
   sorted.forEach(it=>{
-    let row = rows.find(r => r.page===it.page && Math.abs(r.top - it.top) <= tolerance);
-    if(!row){
-      row = { page: it.page, top: it.top, items: [] };
-      rows.push(row);
+    if(current && current.page === it.page && Math.abs(it.top - current.lastTop) <= tolerance){
+      current.items.push(it);
+      current.lastTop = it.top;
+    } else {
+      current = { page: it.page, top: it.top, lastTop: it.top, items: [it] };
+      rows.push(current);
     }
-    row.items.push(it);
   });
   return rows;
 }
