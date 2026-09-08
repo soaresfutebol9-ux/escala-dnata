@@ -2609,6 +2609,63 @@ document.getElementById('importPdfInput').addEventListener('change', async (e)=>
   }
 });
 
+function computeImportDiff(person, days, year, month){
+  const daysInMonth = new Date(year, month+1, 0).getDate();
+  const existingArr = state.offDays[person.id] || [];
+  const newDays = [], alreadyDays = [], outOfRange = [];
+  days.forEach(d=>{
+    if(d < 1 || d > daysInMonth){ outOfRange.push(d); return; }
+    const dateStr = iso(year, month, d);
+    if(existingArr.includes(dateStr)) alreadyDays.push(d);
+    else newDays.push(d);
+  });
+  return { newDays, alreadyDays, outOfRange };
+}
+function isPersonInRosterForMonth(personId, year, month){
+  return ((state.monthRosters||{})[monthKey(year, month)] || []).includes(personId);
+}
+
+function renderImportMatchedList(){
+  const monthSel = document.getElementById('importMonthSelect');
+  const yearInput = document.getElementById('importYearInput');
+  const container = document.getElementById('importMatchedList');
+  if(!monthSel || !container || !pendingImport) return;
+  const month = parseInt(monthSel.value, 10);
+  const year = parseInt(yearInput.value, 10);
+  const matched = pendingImport.matched;
+
+  if(!matched.length){
+    container.innerHTML = `<p class="mini-hint">Nenhuma folga (F/FA) encontrada pra ninguém já cadastrado. Confira se é o PDF certo.</p>`;
+    return;
+  }
+
+  let html = `<p style="font-weight:600; margin-bottom:8px;">Folgas encontradas (${matched.length} pessoa${matched.length>1?'s':''})</p>`;
+  matched.forEach(m=>{
+    const { newDays, alreadyDays } = computeImportDiff(m.person, m.days, year, month);
+    const inRoster = isPersonInRosterForMonth(m.person.id, year, month);
+    let statusLine;
+    if(newDays.length === 0 && alreadyDays.length > 0){
+      statusLine = `<span class="status-tag" style="color:var(--c-disponivel);">✓ Folgas já cadastradas — nada novo pra importar</span>`;
+    } else {
+      const parts = [];
+      if(newDays.length) parts.push(`${newDays.length} novo(s): ${newDays.join(', ')}`);
+      if(alreadyDays.length) parts.push(`${alreadyDays.length} já cadastrado(s): ${alreadyDays.join(', ')}`);
+      statusLine = `<span class="status-tag" style="color:var(--text-faint);">${parts.join(' · ')}</span>`;
+    }
+    const rosterNote = !inRoster
+      ? `<span class="status-tag" style="color:var(--c-desejada);">Ainda não incluído(a) na escala do mês — será incluído(a) automaticamente</span>`
+      : '';
+    html += `<div class="team-card" style="margin-bottom:8px;">
+      <div class="info">
+        <span class="name">${m.person.name}</span>
+        ${statusLine}
+        ${rosterNote}
+      </div>
+    </div>`;
+  });
+  container.innerHTML = html;
+}
+
 function buildImportReview(result){
   const { peopleFound, detectedMonth, detectedYear, totalDaysInPdf } = result;
 
@@ -2616,7 +2673,8 @@ function buildImportReview(result){
   const matched = [];
   const unmatchedRegs = [];
   peopleFound.forEach(pf=>{
-    const person = state.people.find(p => (p.registration||'').trim() === pf.registration.trim());
+    const normalize = s => (s||'').replace(/\D/g, '');
+    const person = state.people.find(p => normalize(p.registration) === normalize(pf.registration));
     if(person) matched.push({ person, days: pf.days, pdfName: pf.name });
     else unmatchedRegs.push(pf);
   });
@@ -2643,19 +2701,7 @@ function buildImportReview(result){
 
   html += `<p class="mini-hint" style="margin-bottom:10px;">"F" (folga) e "FA" (folga agrupada) contam como folga. Outros códigos (A9, B, J, CH...) não são tocados.</p>`;
 
-  if(matched.length){
-    html += `<p style="font-weight:600; margin-bottom:8px;">Folgas encontradas (${matched.length} pessoa${matched.length>1?'s':''})</p>`;
-    matched.forEach(m=>{
-      html += `<div class="team-card" style="margin-bottom:8px;">
-        <div class="info">
-          <span class="name">${m.person.name}</span>
-          <span class="status-tag" style="color:var(--text-faint);">${m.days.length} dia(s): ${m.days.join(', ')}</span>
-        </div>
-      </div>`;
-    });
-  } else {
-    html += `<p class="mini-hint">Nenhuma folga (F) encontrada pra ninguém já cadastrado. Confira se é o PDF certo.</p>`;
-  }
+  html += `<div id="importMatchedList"></div>`;
 
   if(noDataFound.length){
     html += `<p style="font-weight:600; margin:14px 0 8px; color:var(--c-falta);">⚠️ Sem dados no PDF pra ${noDataFound.length} pessoa(s) já cadastrada(s)</p>`;
@@ -2668,6 +2714,9 @@ function buildImportReview(result){
   }
 
   document.getElementById('importReviewBody').innerHTML = html;
+  renderImportMatchedList();
+  document.getElementById('importMonthSelect').addEventListener('change', renderImportMatchedList);
+  document.getElementById('importYearInput').addEventListener('input', renderImportMatchedList);
   document.getElementById('importReviewModalOverlay').classList.add('active');
   pushOverlay('importReviewModalOverlay');
 }
