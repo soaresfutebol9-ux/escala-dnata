@@ -561,7 +561,10 @@
     font-size: 12px; font-weight: 600; color: var(--text-dim);
     background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px;
   }
-  .imp-chip.exists{ opacity: 0.5; }
+  .imp-chip.new{ color: var(--text); background: rgba(255,107,53,0.18); border-color: var(--accent); }
+  .imp-chip.gone{ color: var(--c-falta); background: transparent; border-color: rgba(248,113,113,0.45); text-decoration: line-through; opacity: 0.85; }
+  .imp-title .imp-warn{ margin-left: auto; padding: 1px 8px; border-radius: 999px; letter-spacing: 0; text-transform: none; color: var(--accent); background: rgba(255,107,53,0.12); border: 1px solid rgba(255,107,53,0.4); }
+  .imp-title .imp-ok{ margin-left: auto; letter-spacing: 0; text-transform: none; color: var(--c-disponivel); }
   .imp-grid{ display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
   .imp-day{
     padding: 7px 0; font-size: 12px; font-weight: 600; cursor: pointer;
@@ -2820,17 +2823,17 @@ document.getElementById('importPdfInput').addEventListener('change', async (e)=>
   }
 });
 
-function computeImportDiff(person, days, year, month){
-  const daysInMonth = new Date(year, month+1, 0).getDate();
-  const existingArr = state.offDays[person.id] || [];
-  const newDays = [], alreadyDays = [], outOfRange = [];
-  days.forEach(d=>{
-    if(d < 1 || d > daysInMonth){ outOfRange.push(d); return; }
-    const dateStr = iso(year, month, d);
-    if(existingArr.includes(dateStr)) alreadyDays.push(d);
-    else newDays.push(d);
-  });
-  return { newDays, alreadyDays, outOfRange };
+// Compara os dias de folga do PDF com os que já estão salvos no app para aquele mês.
+// added = no PDF e ainda não salvos · removed = salvos no app mas ausentes no PDF.
+function importDiff(person, pdfDays, year, month){
+  const prefix = monthKey(year, month) + '-';
+  const saved = (state.offDays[person.id] || []).filter(ds => ds.startsWith(prefix))
+    .map(ds => parseInt(ds.slice(8, 10), 10)).filter(Number.isInteger);
+  const pdf = new Set(pdfDays), cur = new Set(saved);
+  return {
+    added: [...pdf].filter(d => !cur.has(d)).sort((a,b)=>a-b),
+    removed: [...cur].filter(d => !pdf.has(d)).sort((a,b)=>a-b)
+  };
 }
 function isPersonInRosterForMonth(personId, year, month){
   return ((state.monthRosters||{})[monthKey(year, month)] || []).includes(personId);
@@ -2852,11 +2855,16 @@ function renderImportMatchedList(){
   const validYear = Number.isInteger(year) && year >= 2020 && year <= 2100 && Number.isInteger(month);
   const daysInMonth = validYear ? new Date(year, month + 1, 0).getDate() : 31;
 
-  let html = `<div class="imp-title">Folgas encontradas <span>${matched.length}</span></div>`;
-  matched.forEach(m=>{
+  const rows = matched.map(m=>{
     const days = [...new Set(m.days)].filter(d => d >= 1 && d <= daysInMonth).sort((a,b)=>a-b);
-    const existing = validYear ? (state.offDays[m.person.id] || []) : [];
-    const isExisting = d => existing.includes(iso(year, month, d));
+    const diff = validYear ? importDiff(m.person, days, year, month) : { added: [], removed: [] };
+    return { m, days, diff, changed: diff.added.length + diff.removed.length > 0 };
+  });
+  const divergent = rows.filter(r => r.changed).length;
+
+  let html = `<div class="imp-title">Folgas encontradas <span>${matched.length}</span>${
+    divergent ? `<span class="imp-warn">${divergent} com divergência</span>` : `<span class="imp-ok">✓ tudo igual à escala</span>`}</div>`;
+  rows.forEach(({ m, days, diff, changed })=>{
     const editing = importEditingReg === m.reg;
     const inRoster = validYear && isPersonInRosterForMonth(m.person.id, year, month);
     const name = genEsc(m.person.name);
@@ -2868,20 +2876,29 @@ function renderImportMatchedList(){
         grid += `<button type="button" class="imp-day ${days.includes(d) ? 'on' : ''}" data-imp-day="${d}" data-imp-reg="${m.reg}">${d}</button>`;
       }
       body = `<div class="imp-grid">${grid}</div>`;
-    }else if(days.length){
-      body = `<div class="imp-chips">${days.map(d => `<span class="imp-chip ${isExisting(d) ? 'exists' : ''}">${d}</span>`).join('')}</div>`;
-      if(days.every(isExisting)) body += `<span class="status-tag" style="color:var(--c-disponivel);">✓ já cadastradas</span>`;
     }else{
-      body = `<span class="status-tag" style="color:var(--text-faint);">Sem folgas</span>`;
+      const all = [...new Set([...days, ...diff.removed])].sort((a,b)=>a-b);
+      const chips = all.map(d => {
+        const cls = diff.added.includes(d) ? 'new' : (diff.removed.includes(d) ? 'gone' : '');
+        return `<span class="imp-chip ${cls}">${d}</span>`;
+      }).join('');
+      body = chips ? `<div class="imp-chips">${chips}</div>` : `<span class="status-tag" style="color:var(--text-faint);">Sem folgas</span>`;
+      if(changed){
+        const parts = [];
+        if(diff.added.length) parts.push(`<span style="color:var(--accent);">+${diff.added.length} nova${diff.added.length > 1 ? 's' : ''}</span>`);
+        if(diff.removed.length) parts.push(`<span style="color:var(--c-falta);">−${diff.removed.length} removida${diff.removed.length > 1 ? 's' : ''}</span>`);
+        body += `<span class="status-tag">${parts.join(' · ')}</span>`;
+      }else if(days.length){
+        body += `<span class="status-tag" style="color:var(--c-disponivel);">✓ igual à escala</span>`;
+      }
     }
-    const rosterNote = (!inRoster && days.length)
-      ? `<span class="status-tag" style="color:var(--c-desejada);">Entra na escala do mês</span>`
-      : '';
+    const rosterNote = (!inRoster && days.length && !editing)
+      ? `<span class="status-tag" style="color:var(--c-desejada);">Entra na escala do mês</span>` : '';
     html += `<div class="team-card imp-card">
       <div class="info">
         <span class="name">${name}</span>
         ${body}
-        ${editing ? '' : rosterNote}
+        ${rosterNote}
       </div>
       <button type="button" class="icon-btn-sm" data-imp-edit="${m.reg}" title="${editing ? 'Concluir' : 'Editar folgas'}" aria-label="${editing ? 'Concluir edição de' : 'Editar folgas de'} ${name}">${editing ? '✓' : '✎'}</button>
     </div>`;
@@ -3003,7 +3020,7 @@ document.getElementById('importReviewModalOverlay').addEventListener('click', (e
 });
 
 document.getElementById('confirmImportBtn').addEventListener('click', ()=>{
-  if(!pendingImport || !pendingImport.matched.some(m => m.days.length)){
+  if(!pendingImport || !pendingImport.matched.length){
     showToast('Nada pra importar.');
     return;
   }
@@ -3014,22 +3031,26 @@ document.getElementById('confirmImportBtn').addEventListener('click', ()=>{
     return;
   }
   const daysInTargetMonth = new Date(year, month+1, 0).getDate();
+  const key = monthKey(year, month);
+  const prefix = key + '-';
 
-  let addedTotal = 0, alreadyOffTotal = 0, skippedOutOfRange = 0;
+  // As folgas do mês de cada pessoa passam a ser exatamente as do PDF (já com as
+  // correções feitas no lápis). Folgas de outros meses não são tocadas.
+  let addedTotal = 0, removedTotal = 0;
   pendingImport.matched.forEach(m=>{
-    if(!m.days.length) return;
-    if(!state.offDays[m.person.id]) state.offDays[m.person.id] = [];
-    const arr = state.offDays[m.person.id];
-    m.days.forEach(day=>{
-      if(day < 1 || day > daysInTargetMonth){ skippedOutOfRange++; return; }
-      const dateStr = iso(year, month, day);
-      if(arr.includes(dateStr)) alreadyOffTotal++;
-      else { arr.push(dateStr); addedTotal++; }
-    });
-    // Garante que essa pessoa também participa da escala desse mês.
-    const key = monthKey(year, month);
-    if(!state.monthRosters[key]) state.monthRosters[key] = [];
-    if(!state.monthRosters[key].includes(m.person.id)) state.monthRosters[key].push(m.person.id);
+    const pdfDays = [...new Set(m.days)].filter(d => d >= 1 && d <= daysInTargetMonth).sort((a,b)=>a-b);
+    const current = state.offDays[m.person.id] || [];
+    const currentMonth = current.filter(ds => ds.startsWith(prefix));
+    const next = pdfDays.map(d => iso(year, month, d));
+    addedTotal += next.filter(ds => !currentMonth.includes(ds)).length;
+    removedTotal += currentMonth.filter(ds => !next.includes(ds)).length;
+    state.offDays[m.person.id] = current.filter(ds => !ds.startsWith(prefix)).concat(next);
+    if(next.length){
+      // Garante que essa pessoa também participa da escala desse mês.
+      if(!state.monthRosters) state.monthRosters = {};
+      if(!state.monthRosters[key]) state.monthRosters[key] = [];
+      if(!state.monthRosters[key].includes(m.person.id)) state.monthRosters[key].push(m.person.id);
+    }
   });
 
   saveState();
@@ -3037,7 +3058,8 @@ document.getElementById('confirmImportBtn').addEventListener('click', ()=>{
   renderCalendar();
   renderEscalaList();
   renderTeam();
-  showToast(`Importado: ${addedTotal} folga(s) nova(s) adicionada(s)${alreadyOffTotal ? `, ${alreadyOffTotal} já estavam marcadas` : ''}.`);
+  if(!addedTotal && !removedTotal) showToast('Nada mudou: a escala já estava igual ao PDF.');
+  else showToast(`Aplicado: ${addedTotal} folga${addedTotal === 1 ? '' : 's'} nova${addedTotal === 1 ? '' : 's'}, ${removedTotal} removida${removedTotal === 1 ? '' : 's'}.`);
   requestCloseOverlay('importReviewModalOverlay');
 });
 
