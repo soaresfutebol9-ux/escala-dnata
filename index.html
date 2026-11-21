@@ -1274,6 +1274,16 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="exportMonthOverlay">
+  <div class="modal">
+    <h3>Exportar qual mês?</h3>
+    <div id="exportMonthList" style="display:flex; flex-direction:column; gap:10px; margin-bottom:16px;"></div>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="cancelExportMonthBtn">Cancelar</button>
+    </div>
+  </div>
+</div>
+
 <!-- Day detail sheet -->
 <div class="overlay" id="dayOverlay">
   <div class="sheet">
@@ -2015,7 +2025,7 @@ function renderDaySheet(dateStr){
 
   const disponiveis = [];
   const folgas = [];
-  sortPeople(rosterPeople).forEach(p=>{
+  sortPeopleEscala(rosterPeople).forEach(p=>{
     const off = isOff(p.id, dateStr);
     const absent = isAbsent(p.id, dateStr);
     if(off && !absent) folgas.push(p);
@@ -4401,7 +4411,7 @@ function buildEscalaPdf(year, month){
   const tableW = W - 2 * M;
 
   // altura das linhas: reduz um pouco para caber numa página só (o importador lê 1 página)
-  const nPeople = roster.length, nBands = groups.length;
+  const nPeople = roster.length, nBands = 0; // sem faixas de função no PDF
   const titleBlock = 46, colHeadH = 26, footRowH = 15, legendH = 24;
   const tableTop1 = M + titleBlock;
   const avail1 = H - M - legendH - footRowH - (tableTop1 + colHeadH);
@@ -4507,9 +4517,6 @@ function buildEscalaPdf(year, month){
   const limit = H - M - legendH - footRowH;
   newPage();
   groups.forEach(g => {
-    if(y + bRow + pRow > limit) newPage();
-    drawBand(y, g);
-    y += bRow;
     g.list.forEach(p => {
       if(y + pRow > limit) newPage();
       drawPerson(y, p);
@@ -4535,9 +4542,9 @@ function downloadPdfBytes(bytes, filename){
   setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 
-document.getElementById('exportPdfBtn').addEventListener('click', ()=>{
+function exportPdfForMonth(y, m){
   try{
-    const res = buildEscalaPdf(calYear, calMonth);
+    const res = buildEscalaPdf(y, m);
     if(!res){
       showToast('Ninguém está incluído na escala deste mês ainda.');
       return;
@@ -4548,6 +4555,49 @@ document.getElementById('exportPdfBtn').addEventListener('click', ()=>{
     console.error('Falha ao exportar PDF:', err);
     showToast('Não consegui gerar o PDF. Tente de novo.');
   }
+}
+
+// Só o mês atual e o próximo (se já tiver escala) podem ser exportados.
+// Meses que já acabaram não ficam mais disponíveis.
+function exportableMonths(){
+  const now = new Date();
+  const out = [];
+  for(let i = 0; i < 2; i++){
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    const y = d.getFullYear(), m = d.getMonth();
+    if(rosterPeopleFor(y, m).length) out.push({ y, m, label: `${capFirst(MONTHS[m])} de ${y}`, current: i === 0 });
+  }
+  return out;
+}
+
+function closeExportMonthModal(){
+  document.getElementById('exportMonthOverlay').classList.remove('active');
+}
+registerOverlay('exportMonthOverlay', closeExportMonthModal);
+
+document.getElementById('exportPdfBtn').addEventListener('click', ()=>{
+  const months = exportableMonths();
+  if(!months.length){
+    showToast('Nenhum mês disponível para exportar: o mês atual e o próximo ainda não têm ninguém na escala.');
+    return;
+  }
+  const list = document.getElementById('exportMonthList');
+  list.innerHTML = months.map((x, i) =>
+    `<button class="btn-secondary" data-i="${i}" style="width:100%; text-align:left; padding:14px;">${x.label}<span style="color:var(--text-faint); font-weight:500;"> · ${x.current ? 'mês atual' : 'próximo mês'}</span></button>`
+  ).join('');
+  list.querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const x = months[Number(btn.dataset.i)];
+      requestCloseOverlay('exportMonthOverlay');
+      exportPdfForMonth(x.y, x.m);
+    });
+  });
+  document.getElementById('exportMonthOverlay').classList.add('active');
+  pushOverlay('exportMonthOverlay');
+});
+document.getElementById('cancelExportMonthBtn').addEventListener('click', ()=> requestCloseOverlay('exportMonthOverlay'));
+document.getElementById('exportMonthOverlay').addEventListener('click', (e)=>{
+  if(e.target.id === 'exportMonthOverlay') requestCloseOverlay('exportMonthOverlay');
 });
 
 // ---------- Init ----------
