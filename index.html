@@ -1162,6 +1162,8 @@
   }
 
   .btn-magic.block{ display: block; width: 100%; margin-bottom: 16px; padding: 13px 16px; }
+  .btn-row{ display: flex; gap: 8px; margin-bottom: 10px; }
+  .btn-row .btn-secondary{ flex: 1; padding: 12px 10px; font-weight: 700; }
 </style>
 </head>
 <body>
@@ -1197,9 +1199,12 @@
   <div class="view" id="view-escala">
     <div class="team-head">
       <h2>Escala do mês</h2>
-      <button class="btn-primary" id="importPdfBtn">📄 Importar PDF</button>
     </div>
     <input type="file" id="importPdfInput" accept="application/pdf" style="display:none;">
+    <div class="btn-row">
+      <button class="btn-secondary" id="importPdfBtn">📄 Importar PDF</button>
+      <button class="btn-secondary" id="exportPdfBtn">⬇️ Exportar PDF</button>
+    </div>
     <button class="btn-magic block" id="genOpenBtn">✨ Gerar escala automática</button>
     <div class="escala-month-bar">
       <h3 id="escalaMonthLabel">—</h3>
@@ -2277,13 +2282,11 @@ function renderEscalaList(){
       const f = fnById(fid);
       return f ? `<span class="fn-chip" style="background:${f.hex}">${f.name}</span>` : '';
     }).join('');
-    const offCount = (state.offDays[p.id]||[]).length;
     const inRoster = isInRoster(p.id, calYear, calMonth);
     return `<div class="team-card">
       <div class="info">
         <span class="name">${p.name}</span>
         <div class="fn-chips">${chips || '<span class="status-tag">Sem função definida</span>'}</div>
-        <span class="status-tag">${inRoster ? offCount+' dia(s) de folga marcados neste mês' : 'Não incluído na escala deste mês'}</span>
       </div>
       <div class="actions">
         <button class="roster-toggle ${inRoster?'active':''}" data-roster="${p.id}">${inRoster ? 'Incluído ✓' : 'Incluir no mês'}</button>
@@ -3541,6 +3544,60 @@ function genAutoM(){
 }
 function genCurrentM(){ return gen.rules.maxPerDay != null ? gen.rules.maxPerDay : genAutoM(); }
 
+// ---- rascunho (fica salvo neste aparelho) ----
+const GEN_DRAFT_KEY = 'escalaGenDraft';
+function genSaveDraft(){
+  if(!gen || gen.resumePrompt) return;
+  try{
+    const requests = {};
+    Object.keys(gen.requests).forEach(pid => { requests[pid] = [...gen.requests[pid]]; });
+    localStorage.setItem(GEN_DRAFT_KEY, JSON.stringify({
+      v: 1, savedAt: Date.now(),
+      step: Math.min(gen.step, GEN_STEP_RULES),
+      year: gen.year, month: gen.month,
+      selected: [...gen.selected], requests, fixed: gen.fixed,
+      faLast: [...gen.faLast], savedOff: gen.savedOff,
+      extraGroups: gen.extraGroups, rules: gen.rules
+    }));
+  }catch(e){ /* localStorage indisponível: segue sem rascunho */ }
+}
+function genLoadDraft(){
+  try{
+    const raw = localStorage.getItem(GEN_DRAFT_KEY);
+    if(!raw) return null;
+    const d = JSON.parse(raw);
+    if(!d || d.v !== 1 || !Number.isInteger(d.month) || !Number.isInteger(d.year)) return null;
+    return d;
+  }catch(e){ return null; }
+}
+function genClearDraft(){
+  try{ localStorage.removeItem(GEN_DRAFT_KEY); }catch(e){}
+}
+function genRestoreDraft(d){
+  const ids = new Set(state.people.map(p => p.id));
+  gen.year = d.year; gen.month = d.month;
+  gen.selected = new Set((d.selected || []).filter(id => ids.has(id)));
+  gen.requests = {};
+  Object.keys(d.requests || {}).forEach(pid => {
+    const days = (d.requests[pid] || []).filter(n => Number.isInteger(n));
+    if(ids.has(pid) && days.length) gen.requests[pid] = new Set(days);
+  });
+  gen.fixed = (d.fixed || []).filter(r => ids.has(r.pid) && Array.isArray(r.dows))
+    .map(r => ({ id: r.id || genUid(), pid: r.pid, dows: r.dows.filter(w => w >= 0 && w <= 6) }));
+  gen.faLast = new Set((d.faLast || []).filter(id => ids.has(id)));
+  gen.faRecorded = Array.isArray((state.faMonths || {})[genPrevMonthKey()]);
+  gen.savedOff = d.savedOff || {};
+  gen.extraGroups = (d.extraGroups || []).map(g => g.filter(id => ids.has(id))).filter(g => g.length >= 2);
+  const r = d.rules || {};
+  gen.rules = {
+    offs: genClamp(r.offs || 8, 5, 9), maxWork: genClamp(r.maxWork || 5, 3, 7),
+    maxSun: genClamp(r.maxSun || 5, 2, 8),
+    maxPerDay: Number.isInteger(r.maxPerDay) ? Math.max(1, r.maxPerDay) : null
+  };
+  gen.step = genClamp(d.step || 0, 0, GEN_STEP_RULES);
+  genNormalizeFixed();
+}
+
 // ---- abrir / fechar ----
 function genOpen(){
   if(!state.people.length){
@@ -3557,13 +3614,17 @@ function genOpen(){
   };
   genPrefillRequests();
   genPrefillFa();
+  const draft = genLoadDraft();
+  if(draft) gen.resumePrompt = draft;
   document.getElementById('genOverlay').classList.add('active');
   pushOverlay('genOverlay');
   genRender(true);
 }
 function genClose(){
+  const hadDraft = gen && !gen.applied && !gen.resumePrompt && !!genLoadDraft();
   document.getElementById('genOverlay').classList.remove('active');
   gen = null;
+  if(hadDraft) showToast('Rascunho salvo. Você retoma de onde parou.');
 }
 registerOverlay('genOverlay', genClose);
 
@@ -3691,8 +3752,34 @@ function genBuildConfig(){
 }
 
 // ---- renderização ----
+function genRenderResume(animate){
+  const d = gen.resumePrompt;
+  const when = new Date(d.savedAt || Date.now()).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  const step = GEN_STEPS[genClamp(d.step || 0, 0, GEN_STEP_RULES)];
+  const n = (d.selected || []).filter(id => state.people.some(p => p.id === id)).length;
+  document.getElementById('genModal').classList.remove('wide');
+  document.getElementById('genEyebrow').textContent = 'Rascunho salvo';
+  document.getElementById('genTitle').textContent = 'Continuar de onde parou?';
+  document.querySelectorAll('#genProgress span').forEach(el => el.classList.remove('done'));
+  const body = document.getElementById('genBody');
+  body.innerHTML = `<div class="gen-step ${animate ? 'anim-fwd' : ''}">
+    <p class="gen-lead">Você deixou uma escala pela metade. Se continuar, todas as suas respostas voltam como estavam e você só altera o que precisar.</p>
+    <div class="gen-group">
+      <div class="gen-group-head"><span class="gname">${capFirst(MONTHS[d.month] || '')} de ${d.year}</span></div>
+      <div class="gen-lead" style="margin:0;">
+        <b>${n}</b> pessoa${n === 1 ? '' : 's'} na escala<br>
+        Parou no passo: <b>${genEsc(step.eyebrow)}</b><br>
+        Salvo em ${when}
+      </div>
+    </div>
+    <p class="mini-hint">Se começar do zero, o rascunho antigo é apagado.</p>
+  </div>`;
+  document.getElementById('genFoot').innerHTML = `<button class="btn-secondary" data-nav="fresh">Recomeçar</button>
+    <button class="btn-primary" data-nav="resume">Continuar</button>`;
+}
 function genRender(animate){
   if(!gen) return;
+  if(gen.resumePrompt){ genRenderResume(animate); return; }
   const st = GEN_STEPS[gen.step];
   document.getElementById('genModal').classList.toggle('wide', gen.step === GEN_STEP_RESULT);
   document.getElementById('genEyebrow').textContent = `Passo ${gen.step + 1} de ${GEN_STEPS.length} · ${st.eyebrow}`;
@@ -4082,6 +4169,8 @@ function genApply(){
   calYear = year; calMonth = month;
   saveUiState();
   render();
+  gen.applied = true;
+  genClearDraft();
   requestCloseOverlay('genOverlay');
   showToast('Escala gerada e aplicada ✓');
 }
@@ -4092,6 +4181,7 @@ function genGo(step, dir){
   gen.step = step;
   gen.runToken++;
   if(step >= 2) genNormalizeFixed();
+  genSaveDraft();
   if(step === GEN_STEP_RESULT){ genGenerate(true); return; }
   genRender(true);
 }
@@ -4102,7 +4192,6 @@ function genGo(step, dir){
   const foot = document.getElementById('genFoot');
 
   document.getElementById('genCloseBtn').addEventListener('click', ()=>{
-    if(gen && gen.step > 0 && !confirm('Sair do assistente? As escolhas feitas até aqui serão perdidas.')) return;
     requestCloseOverlay('genOverlay');
   });
 
@@ -4112,6 +4201,18 @@ function genGo(step, dir){
     if(!btn || btn.disabled) return;
     switch(btn.dataset.nav){
       case 'close':    requestCloseOverlay('genOverlay'); break;
+      case 'resume':
+        genRestoreDraft(gen.resumePrompt);
+        gen.resumePrompt = null;
+        gen.dir = 1;
+        genRender(true);
+        break;
+      case 'fresh':
+        genClearDraft();
+        gen.resumePrompt = null;
+        gen.dir = 1;
+        genRender(true);
+        break;
       case 'next':     genGo(gen.step + 1, 1); break;
       case 'back':     genGo(gen.step - 1, -1); break;
       case 'generate': genGo(GEN_STEP_RESULT, 1); break;
@@ -4140,9 +4241,10 @@ function genGo(step, dir){
       const row = gen.fixed.find(r => r.id === t.dataset.rid);
       if(row) row.pid = t.value;
     }
+    genSaveDraft();
   });
 
-  body.addEventListener('click', (e)=>{
+  const genOnBodyClick = (e)=>{
     if(!gen) return;
     const el = e.target.closest('[data-act]');
     if(!el || el.tagName === 'SELECT') return;
@@ -4254,10 +4356,294 @@ function genGo(step, dir){
       gen.rules.maxPerDay = null;
       genRender(false);
     }
-  });
+  };
+  body.addEventListener('click', (e)=>{ genOnBodyClick(e); genSaveDraft(); });
 
   document.getElementById('genOpenBtn').addEventListener('click', genOpen);
 })();
+
+
+// ---------- Exportar a escala do mês em PDF ----------
+// Gerador de PDF próprio (sem biblioteca externa, funciona offline). Desenha uma
+// tabela em A4 paisagem: matrícula, nome, um quadradinho por dia e total de folgas,
+// agrupada por função. O layout segue o mesmo padrão que o "Importar PDF" entende
+// (linha com os dias 1, 2, 3…, mês e ano em texto, matrícula no início de cada linha,
+// F/FA na coluna do dia), então o PDF exportado também pode ser importado de volta.
+
+// Larguras da Helvetica (AFM, unidades de 1/1000 em), caracteres 32 a 126.
+const PDF_WIDTHS_REG = [278,278,355,556,556,889,667,191,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,278,278,584,584,584,556,1015,667,667,722,722,667,611,778,722,278,500,667,556,833,722,778,667,778,722,667,611,722,667,944,667,667,611,278,278,278,469,556,333,556,556,500,556,556,278,556,556,222,222,500,222,833,556,556,556,556,333,500,278,556,500,722,500,500,500,334,260,334,584];
+const PDF_WIDTHS_BOLD = [278,333,474,556,556,889,722,238,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,333,333,584,584,584,611,975,722,722,722,722,667,611,778,722,278,556,722,611,833,722,778,667,778,722,667,611,722,667,944,667,667,611,333,278,333,584,556,333,556,611,556,611,556,333,611,611,278,278,556,278,889,611,611,611,611,389,556,333,611,556,778,556,556,500,389,280,389,584];
+
+function pdfCharWidth(ch, bold){
+  let code = ch.charCodeAt(0);
+  if(code < 32 || code > 126){
+    const base = ch.normalize('NFD').charAt(0);
+    code = base.charCodeAt(0);
+    if(code < 32 || code > 126) return 556;
+  }
+  return (bold ? PDF_WIDTHS_BOLD : PDF_WIDTHS_REG)[code - 32];
+}
+function pdfTextWidth(str, size, bold){
+  let w = 0;
+  for(const ch of String(str)) w += pdfCharWidth(ch, bold);
+  return w * size / 1000;
+}
+function pdfFit(str, maxW, size, bold){
+  str = String(str);
+  if(pdfTextWidth(str, size, bold) <= maxW) return str;
+  while(str.length > 1 && pdfTextWidth(str + '...', size, bold) > maxW) str = str.slice(0, -1);
+  return str.trimEnd() + '...';
+}
+// Texto -> bytes WinAnsi (os acentos do português cabem direto), com escape de ( ) \
+function pdfEncode(str){
+  const special = { '’':'\x92', '‘':'\x91', '“':'\x93', '”':'\x94', '–':'\x96', '—':'\x97', '•':'\x95', '…':'\x85' };
+  let out = '';
+  for(const ch of String(str)){
+    const code = ch.charCodeAt(0);
+    if(special[ch]) out += special[ch];
+    else if(code < 32 || (code >= 127 && code < 160)) out += ' ';
+    else if(code > 255) out += '?';
+    else if(ch === '(' || ch === ')' || ch === '\\') out += '\\' + ch;
+    else out += ch;
+  }
+  return out;
+}
+function pdfColor(hex){
+  const n = parseInt(hex.replace('#', ''), 16);
+  const f = v => (v / 255).toFixed(3);
+  return `${f((n >> 16) & 255)} ${f((n >> 8) & 255)} ${f(n & 255)}`;
+}
+
+function PdfDoc(W, H){ this.W = W; this.H = H; this.pages = []; this.cur = null; }
+PdfDoc.prototype.addPage = function(){ this.cur = []; this.pages.push(this.cur); };
+// coordenadas "de cima para baixo" (y = distância do topo da página)
+PdfDoc.prototype.rect = function(x, y, w, h, fill, stroke, lw){
+  const ops = [];
+  if(fill) ops.push(`${pdfColor(fill)} rg`);
+  if(stroke) ops.push(`${pdfColor(stroke)} RG ${lw || 0.4} w`);
+  ops.push(`${x.toFixed(2)} ${(this.H - y - h).toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)} re ${fill && stroke ? 'B' : (fill ? 'f' : 'S')}`);
+  this.cur.push(ops.join(' '));
+};
+PdfDoc.prototype.line = function(x1, y1, x2, y2, color, lw){
+  this.cur.push(`${pdfColor(color)} RG ${lw || 0.4} w ${x1.toFixed(2)} ${(this.H - y1).toFixed(2)} m ${x2.toFixed(2)} ${(this.H - y2).toFixed(2)} l S`);
+};
+PdfDoc.prototype.text = function(x, baseline, str, size, bold, color){
+  if(str === '' || str == null) return;
+  this.cur.push(`BT /${bold ? 'F2' : 'F1'} ${size} Tf ${pdfColor(color || '#111827')} rg ${x.toFixed(2)} ${(this.H - baseline).toFixed(2)} Td (${pdfEncode(str)}) Tj ET`);
+};
+PdfDoc.prototype.textCenter = function(cx, baseline, str, size, bold, color){
+  const w = pdfTextWidth(str, size, bold);
+  this.text(cx - w / 2, baseline, str, size, bold, color);
+};
+PdfDoc.prototype.build = function(){
+  const objs = [];
+  objs[1] = '<< /Type /Catalog /Pages 2 0 R >>';
+  objs[3] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>';
+  objs[4] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>';
+  let next = 5;
+  const pageNums = [];
+  this.pages.forEach(ops => {
+    const pageNo = next++, contentNo = next++;
+    pageNums.push(pageNo);
+    const stream = ops.join('\n');
+    objs[contentNo] = `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`;
+    objs[pageNo] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${this.W} ${this.H}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${contentNo} 0 R >>`;
+  });
+  objs[2] = `<< /Type /Pages /Kids [${pageNums.map(n => n + ' 0 R').join(' ')}] /Count ${pageNums.length} >>`;
+  let out = '%PDF-1.4\n%\xE2\xE3\xCF\xD3\n';
+  const offsets = [];
+  for(let i = 1; i < objs.length; i++){
+    offsets[i] = out.length;
+    out += `${i} 0 obj\n${objs[i]}\nendobj\n`;
+  }
+  const xref = out.length;
+  out += `xref\n0 ${objs.length}\n0000000000 65535 f \n`;
+  for(let i = 1; i < objs.length; i++) out += String(offsets[i]).padStart(10, '0') + ' 00000 n \n';
+  out += `trailer\n<< /Size ${objs.length} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+  const bytes = new Uint8Array(out.length);
+  for(let i = 0; i < out.length; i++) bytes[i] = out.charCodeAt(i) & 255;
+  return bytes;
+};
+
+function buildEscalaPdf(year, month){
+  const roster = sortPeople(rosterPeopleFor(year, month));
+  if(!roster.length) return null;
+  const D = new Date(year, month + 1, 0).getDate();
+  const dows = [];
+  for(let d = 1; d <= D; d++) dows.push(new Date(year, month, d).getDay());
+
+  // agrupa por função (mesma ordem do assistente)
+  const groups = [];
+  [...GEN_GROUP_ORDER, 'none'].forEach(gid => {
+    const list = roster.filter(p => genGroupOf(p) === gid);
+    if(list.length) groups.push({ gid, fn: fnById(gid), list });
+  });
+
+  // dados de cada pessoa
+  const info = {};
+  roster.forEach(p => {
+    const offs = [], absent = [];
+    for(let d = 1; d <= D; d++){
+      const ds = iso(year, month, d);
+      offs.push(isOff(p.id, ds));
+      absent.push(isAbsent(p.id, ds));
+    }
+    const faSet = new Set(genFaFirstDays(offs, dows));
+    info[p.id] = { offs, absent, faSet, total: offs.filter(Boolean).length };
+  });
+
+  const W = 841.89, H = 595.28, M = 24;
+  const hasReg = roster.some(p => (p.registration || '').trim());
+  const matrW = hasReg ? 40 : 0, nameW = 132, totW = 24;
+  const dayW = (W - 2 * M - matrW - nameW - totW) / D;
+  const dx0 = M + matrW + nameW;                 // x do primeiro dia
+  const tableW = W - 2 * M;
+
+  // altura das linhas: reduz um pouco para caber numa página só (o importador lê 1 página)
+  const nPeople = roster.length, nBands = groups.length;
+  const titleBlock = 46, colHeadH = 26, footRowH = 15, legendH = 24;
+  const tableTop1 = M + titleBlock;
+  const avail1 = H - M - legendH - footRowH - (tableTop1 + colHeadH);
+  const nominal = nPeople * 16 + nBands * 13;
+  let f = 1;
+  if(nominal > avail1) f = Math.max(0.78, avail1 / nominal);
+  const pRow = 16 * f, bRow = 13 * f, fs = Math.max(0.85, f);
+
+  const doc = new PdfDoc(W, H);
+  const mesNome = capFirst(MONTHS[month]);
+  const now = new Date();
+  const stamp = `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+
+  function drawTitle(first){
+    if(first){
+      let x = M;
+      doc.text(x, M + 15, 'Escala de folgas', 16, true, '#111827');
+      x += pdfTextWidth('Escala de folgas', 16, true) + 8;
+      doc.text(x, M + 15, '·', 16, true, '#9CA3AF');
+      x += pdfTextWidth('·', 16, true) + 8;
+      doc.text(x, M + 15, mesNome, 16, true, '#EA580C');
+      x += pdfTextWidth(mesNome, 16, true) + 10;
+      doc.text(x, M + 15, String(year), 16, false, '#EA580C'); // fonte diferente: o ano vira um item de texto separado (o importador precisa disso)
+      doc.text(M, M + 30, `${nPeople} pessoa${nPeople > 1 ? 's' : ''} na escala · gerado em ${stamp}`, 8.5, false, '#6B7280');
+    }else{
+      doc.text(M, M + 10, `Escala de folgas · ${mesNome} ${year} (continuação)`, 10, true, '#111827');
+    }
+  }
+  function drawColHeader(y){
+    doc.rect(M, y, tableW, colHeadH, '#E5E7EB');
+    if(hasReg) doc.text(M + 3, y + 16, 'Matr.', 7.5, true, '#374151');
+    doc.text(M + matrW + 3, y + 16, 'Nome', 7.5, true, '#374151');
+    for(let d = 0; d < D; d++){
+      const x = dx0 + d * dayW;
+      if(dows[d] === 0) doc.rect(x, y, dayW, colHeadH, '#FDDCC5');
+      doc.textCenter(x + dayW / 2, y + 12, String(d + 1), 8, true, '#111827');
+      doc.textCenter(x + dayW / 2, y + 21, DOW[dows[d]].charAt(0).toUpperCase(), 6.5, false, '#6B7280');
+    }
+    doc.textCenter(dx0 + D * dayW + totW / 2, y + 16, 'Fol.', 7.5, true, '#374151');
+    doc.line(M, y + colHeadH, M + tableW, y + colHeadH, '#9CA3AF', 0.6);
+  }
+  function drawBand(y, g){
+    doc.rect(M, y, tableW, bRow, '#F3F4F6');
+    doc.rect(M + 3, y + (bRow - 5) / 2, 5, 5, g.fn ? g.fn.hex : '#64748B');
+    doc.text(M + 12, y + bRow / 2 + 2.6, `${g.fn ? g.fn.name : 'Sem função'} (${g.list.length})`, 7.5 * fs, true, '#374151');
+  }
+  function drawPerson(y, p){
+    const inf = info[p.id];
+    const baseline = y + pRow / 2 + 2.6 * fs;
+    if(hasReg) doc.text(M + 3, baseline, (p.registration || '').trim(), 7.5 * fs, false, '#374151');
+    doc.text(M + matrW + 3, baseline, pdfFit(p.name, nameW - 6, 8.5 * fs, false), 8.5 * fs, false, '#111827');
+    for(let d = 0; d < D; d++){
+      const x = dx0 + d * dayW;
+      let fill = null, label = '', lcolor = '#111827';
+      if(inf.offs[d]){ fill = inf.faSet.has(d) ? '#FDBA74' : '#CBD5E1'; label = inf.faSet.has(d) ? 'FA' : 'F'; }
+      else if(inf.absent[d]){ fill = '#FCA5A5'; label = 'FT'; lcolor = '#7F1D1D'; }
+      else if(dows[d] === 0) fill = '#FFF4EC';
+      doc.rect(x, y, dayW, pRow, fill, '#D1D5DB', 0.3);
+      if(label) doc.text(x + (dayW - pdfTextWidth(label, 7 * fs, true)) / 2, baseline, label, 7 * fs, true, lcolor);
+    }
+    doc.textCenter(dx0 + D * dayW + totW / 2, baseline, String(inf.total), 8 * fs, true, '#111827');
+    doc.line(M, y + pRow, M + matrW + nameW, y + pRow, '#D1D5DB', 0.3);
+    doc.line(dx0 + D * dayW, y + pRow, M + tableW, y + pRow, '#D1D5DB', 0.3);
+  }
+  function drawFootRow(y){
+    doc.rect(M, y, tableW, footRowH, '#E5E7EB');
+    doc.text(M + 3, y + 10.5, 'Folgam', 7.5, true, '#374151');
+    let sum = 0;
+    for(let d = 0; d < D; d++){
+      let n = 0;
+      roster.forEach(p => { if(info[p.id].offs[d]) n++; });
+      sum += n;
+      doc.textCenter(dx0 + d * dayW + dayW / 2, y + 10.5, String(n), 7.5, true, '#111827');
+    }
+    doc.textCenter(dx0 + D * dayW + totW / 2, y + 10.5, String(sum), 7.5, true, '#111827');
+  }
+  function drawLegend(){
+    let x = M;
+    const y = H - M - 4;
+    const items = [['#CBD5E1', 'F  Folga'], ['#FDBA74', 'FA  Folga agrupada (1º dia)'], ['#FCA5A5', 'FT  Falta'], ['#FFF4EC', 'Domingo']];
+    items.forEach(([c, label]) => {
+      doc.rect(x, y - 7, 9, 9, c, '#9CA3AF', 0.4);
+      doc.text(x + 13, y, label, 7.5, false, '#374151');
+      x += 13 + pdfTextWidth(label, 7.5, false) + 16;
+    });
+  }
+
+  // ---- paginação ----
+  let pageIdx = 0;
+  let y;
+  function newPage(){
+    doc.addPage();
+    pageIdx++;
+    drawTitle(pageIdx === 1);
+    y = pageIdx === 1 ? tableTop1 : M + 16;
+    drawColHeader(y);
+    y += colHeadH;
+  }
+  const limit = H - M - legendH - footRowH;
+  newPage();
+  groups.forEach(g => {
+    if(y + bRow + pRow > limit) newPage();
+    drawBand(y, g);
+    y += bRow;
+    g.list.forEach(p => {
+      if(y + pRow > limit) newPage();
+      drawPerson(y, p);
+      y += pRow;
+    });
+  });
+  drawFootRow(y);
+  drawLegend();
+  doc.text(W - M - pdfTextWidth('Folgas e faltas conforme a escala do app', 7.5, false), H - M - 4, 'Folgas e faltas conforme a escala do app', 7.5, false, '#9CA3AF');
+
+  const fname = `escala-${normalizeText(MONTHS[month])}-${year}.pdf`;
+  return { bytes: doc.build(), filename: fname };
+}
+
+function downloadPdfBytes(bytes, filename){
+  const blob = new Blob([bytes], { type: 'application/pdf' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+document.getElementById('exportPdfBtn').addEventListener('click', ()=>{
+  try{
+    const res = buildEscalaPdf(calYear, calMonth);
+    if(!res){
+      showToast('Ninguém está incluído na escala deste mês ainda.');
+      return;
+    }
+    downloadPdfBytes(res.bytes, res.filename);
+    showToast('PDF da escala gerado ✓');
+  }catch(err){
+    console.error('Falha ao exportar PDF:', err);
+    showToast('Não consegui gerar o PDF. Tente de novo.');
+  }
+});
 
 // ---------- Init ----------
 restoreUiState();
