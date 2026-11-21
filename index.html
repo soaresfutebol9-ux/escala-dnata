@@ -442,6 +442,29 @@
     color: var(--c-falta);
   }
 
+  .shift-btn{
+    background: var(--surface-3);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-size: 11.5px;
+    font-weight: 600;
+    padding: 6px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .shift-btn:hover{ border-color: #A78BFA; color: #A78BFA; }
+  .shift-btn.active{ background: rgba(167,139,250,0.15); border-color: #A78BFA; color: #A78BFA; }
+  .shift-tabs{ display:flex; gap:8px; margin-bottom:12px; }
+  .shift-tabs button{ flex:1; }
+  .shift-tabs button.on{ border-color: #A78BFA; color: #A78BFA; background: rgba(167,139,250,0.15); }
+  .shift-grid{ display:grid; grid-template-columns: repeat(5, 1fr); gap:8px; max-height:40vh; overflow-y:auto; }
+  .shift-grid button{
+    background: var(--surface-3); border:1px solid var(--border); color: var(--text);
+    font-size: 14px; font-weight: 700; padding: 10px 0; border-radius: 8px; cursor:pointer;
+  }
+  .shift-grid button.on{ background:#A78BFA; border-color:#A78BFA; color:#0F1720; }
+
   .roster-toggle{
     background: var(--surface-3);
     border: 1px solid var(--border);
@@ -1298,6 +1321,22 @@
   </div>
 </div>
 
+<!-- Código de turno -->
+<div class="modal-overlay" id="shiftOverlay">
+  <div class="modal">
+    <h3 id="shiftTitle">Código de turno</h3>
+    <div class="shift-tabs">
+      <button class="btn-secondary" id="shiftTabA">A · Dia</button>
+      <button class="btn-secondary" id="shiftTabB">B · Noite</button>
+    </div>
+    <div class="shift-grid" id="shiftGrid"></div>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="shiftClearBtn">Remover código</button>
+      <button class="btn-secondary" id="shiftCancelBtn">Fechar</button>
+    </div>
+  </div>
+</div>
+
 <!-- Add/Edit person modal -->
 <div class="modal-overlay" id="personModalOverlay">
   <div class="modal">
@@ -1357,7 +1396,7 @@
         </div>
         <button class="icon-btn-sm" id="genCloseBtn" title="Fechar">✕</button>
       </div>
-      <div class="gen-progress" id="genProgress"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+      <div class="gen-progress" id="genProgress"><span></span><span></span><span></span><span></span><span></span><span></span></div>
     </div>
     <div class="gen-body" id="genBody"></div>
     <div class="gen-foot" id="genFoot"></div>
@@ -1384,7 +1423,7 @@ const FUNCTIONS = [
 const DOW = ['dom','seg','ter','qua','qui','sex','sáb'];
 const MONTHS = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
 function capFirst(s){ return s.charAt(0).toUpperCase() + s.slice(1); }
-const DEFAULT_STATE = { people: [], offDays: {}, requestedOffDays: {}, absences: {}, dayAssignments: {}, publishedMonths: [], monthRosters: {}, coveragePairs: [], faMonths: {} };
+const DEFAULT_STATE = { people: [], offDays: {}, requestedOffDays: {}, absences: {}, dayAssignments: {}, publishedMonths: [], monthRosters: {}, coveragePairs: [], faMonths: {}, shiftCodes: {} };
 
 // ---------- State ----------
 let state = Object.assign({}, DEFAULT_STATE);
@@ -1663,6 +1702,27 @@ function toggleAbsence(personId, dateStr){
   renderDaySheet(dateStr);
   renderCalendar();
 }
+// ---------- Código de turno (A, A1…A25 = dia · B, B1…B25 = noite) ----------
+// A pessoa continua TRABALHANDO nesse dia (não é folga e conta nos dias seguidos), só que num turno
+// diferente. Código B = turno da noite: ela não fica disponível para o turno do dia.
+function getShiftCode(personId, dateStr){
+  return ((state.shiftCodes || {})[dateStr] || {})[personId] || null;
+}
+function isNightShift(personId, dateStr){
+  const c = getShiftCode(personId, dateStr);
+  return !!c && c.charAt(0) === 'B';
+}
+function setShiftCode(personId, dateStr, code){
+  if(!state.shiftCodes) state.shiftCodes = {};
+  if(code){
+    if(!state.shiftCodes[dateStr]) state.shiftCodes[dateStr] = {};
+    state.shiftCodes[dateStr][personId] = code;
+  }else if(state.shiftCodes[dateStr]){
+    delete state.shiftCodes[dateStr][personId];
+    if(Object.keys(state.shiftCodes[dateStr]).length === 0) delete state.shiftCodes[dateStr];
+  }
+  saveState();
+}
 function getAssignedFn(personId, dateStr){
   return (state.dayAssignments[dateStr] || {})[personId] || null;
 }
@@ -1688,6 +1748,7 @@ function toggleOffDay(personId, dateStr){
     unmarkRequestedOff(personId, dateStr);
   }else{
     arr.push(dateStr);
+    if(getShiftCode(personId, dateStr)) setShiftCode(personId, dateStr, null); // folga e turno diferente não convivem
   }
   saveState();
 }
@@ -1830,7 +1891,7 @@ function renderCalendar(){
       if((p.functions||[]).some(fid => fid==='lider' || fid==='operador')) return; // líder e operador ficam disponíveis na lista do dia, mas não entram nessa contagem
       const off = isOff(p.id, dateStr);
       const absent = isAbsent(p.id, dateStr);
-      if(!off && !absent) availableCount++;
+      if(!off && !absent && !isNightShift(p.id, dateStr)) availableCount++;
     });
 
     html += `<div class="cal-day ${isToday?'today':''} ${isPast?'past-day':''}" data-date="${dateStr}">
@@ -2025,10 +2086,12 @@ function renderDaySheet(dateStr){
 
   const disponiveis = [];
   const folgas = [];
+  const noturnos = [];
   sortPeopleEscala(rosterPeople).forEach(p=>{
     const off = isOff(p.id, dateStr);
     const absent = isAbsent(p.id, dateStr);
     if(off && !absent) folgas.push(p);
+    else if(!absent && isNightShift(p.id, dateStr)) noturnos.push(p);
     else disponiveis.push(p);
   });
 
@@ -2051,11 +2114,14 @@ function renderDaySheet(dateStr){
   function rowHtml(p, kind){
     const off = isOff(p.id, dateStr);
     const absent = isAbsent(p.id, dateStr);
-    const available = !off && !absent;
+    const code = getShiftCode(p.id, dateStr);
+    const available = !off && !absent && !(code && code.charAt(0) === 'B');
     let rowClass = 'person-row';
     let statusText = '';
     if(off && !absent){ rowClass += ' folga'; statusText = 'Folga'; }
     if(absent){ rowClass += ' falta'; statusText = off ? 'Falta (folga)' : 'Falta'; }
+    if(code && !off && !absent) statusText = `Turno ${code}`;
+    const showShiftBtn = !off && !absent;
     const multi = pickableFunctions(p).length > 1;
     const showFaltaBtn = !off || absent; // esconde "Marcar falta" quando a pessoa está de folga (e ainda não tem falta marcada)
     return `<div class="${rowClass}">
@@ -2067,6 +2133,7 @@ function renderDaySheet(dateStr){
       </div>
       <div style="display:flex; align-items:center; gap:8px;">
         ${statusText ? `<span class="status-tag">${statusText}</span>` : ''}
+        ${showShiftBtn ? `<button class="shift-btn ${code ? 'active' : ''}" data-pid="${p.id}">${code ? code : 'Turno'}</button>` : ''}
         ${showFaltaBtn ? `<button class="falta-toggle ${absent?'active':''}" data-pid="${p.id}">${absent ? 'Remover falta' : 'Marcar falta'}</button>` : ''}
       </div>
     </div>`;
@@ -2075,12 +2142,19 @@ function renderDaySheet(dateStr){
   html += `<div class="section-label">Disponíveis (${disponiveis.filter(p=>!isAbsent(p.id,dateStr)).length})</div>`;
   html += disponiveis.length ? disponiveis.map(p=>rowHtml(p,'disp')).join('') : `<div class="empty-note">Ninguém disponível.</div>`;
 
+  if(noturnos.length){
+    html += `<div class="section-label">Em outro turno (${noturnos.length})</div>`;
+    html += noturnos.map(p=>rowHtml(p,'noturno')).join('');
+  }
   if(folgas.length){
     html += `<div class="section-label">De folga (${folgas.length})</div>`;
     html += folgas.map(p=>rowHtml(p,'folga')).join('');
   }
 
   body.innerHTML = html;
+  body.querySelectorAll('.shift-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=> openShiftPicker(btn.dataset.pid, dateStr));
+  });
   body.querySelectorAll('.falta-toggle').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const pid = btn.dataset.pid;
@@ -2110,6 +2184,55 @@ function renderDaySheet(dateStr){
     el.addEventListener('click', ()=> openOffDaysModal(el.dataset.pid));
   });
 }
+
+// ---------- Seletor de código de turno ----------
+let shiftPid = null, shiftDate = null, shiftSeries = 'A';
+function renderShiftPicker(){
+  const cur = getShiftCode(shiftPid, shiftDate);
+  document.getElementById('shiftTabA').classList.toggle('on', shiftSeries === 'A');
+  document.getElementById('shiftTabB').classList.toggle('on', shiftSeries === 'B');
+  let h = '';
+  for(let n = 0; n <= 25; n++){
+    const code = n === 0 ? shiftSeries : shiftSeries + n;
+    h += `<button data-code="${code}" class="${cur === code ? 'on' : ''}">${code}</button>`;
+  }
+  const grid = document.getElementById('shiftGrid');
+  grid.innerHTML = h;
+  grid.querySelectorAll('button').forEach(b=>{
+    b.addEventListener('click', ()=> applyShiftCode(b.dataset.code));
+  });
+  document.getElementById('shiftClearBtn').style.display = cur ? '' : 'none';
+}
+function openShiftPicker(pid, dateStr){
+  shiftPid = pid; shiftDate = dateStr;
+  const person = state.people.find(p => p.id === pid);
+  const cur = getShiftCode(pid, dateStr);
+  shiftSeries = cur ? cur.charAt(0) : 'A';
+  const [, m, d] = dateStr.split('-').map(Number);
+  document.getElementById('shiftTitle').textContent = `${person ? person.name : ''} · ${d}/${pad(m)}`;
+  renderShiftPicker();
+  document.getElementById('shiftOverlay').classList.add('active');
+  pushOverlay('shiftOverlay');
+}
+function closeShiftPicker(){
+  document.getElementById('shiftOverlay').classList.remove('active');
+}
+registerOverlay('shiftOverlay', closeShiftPicker);
+function applyShiftCode(code){
+  setShiftCode(shiftPid, shiftDate, code);
+  const dateStr = shiftDate;
+  requestCloseOverlay('shiftOverlay');
+  renderDaySheet(dateStr);
+  renderCalendar();
+  showToast(code ? `Turno ${code} marcado.` : 'Código removido.');
+}
+document.getElementById('shiftTabA').addEventListener('click', ()=>{ shiftSeries = 'A'; renderShiftPicker(); });
+document.getElementById('shiftTabB').addEventListener('click', ()=>{ shiftSeries = 'B'; renderShiftPicker(); });
+document.getElementById('shiftClearBtn').addEventListener('click', ()=> applyShiftCode(null));
+document.getElementById('shiftCancelBtn').addEventListener('click', ()=> requestCloseOverlay('shiftOverlay'));
+document.getElementById('shiftOverlay').addEventListener('click', (e)=>{
+  if(e.target.id === 'shiftOverlay') requestCloseOverlay('shiftOverlay');
+});
 
 // ---------- Tabs ----------
 const TAB_ORDER = ['calendario', 'escala', 'equipe'];
@@ -2797,10 +2920,22 @@ async function parseEscalaPdf(file){
       });
       if(closest && closestDist <= tolerance) fDays.push(closest.day);
     });
-    if(fDays.length){
+    // códigos de turno (A, A1…A25 = dia · B, B1…B25 = noite) escritos nas células dos dias
+    const codes = {};
+    row.items.forEach(it=>{
+      const t = (it.text || '').trim().toUpperCase();
+      if(!/^[AB](?:[1-9]|1\d|2[0-5])?$/.test(t)) return;
+      let closest = null, closestDist = Infinity;
+      dayCols.forEach(dc=>{
+        const dist = Math.abs(dc.x - it.x);
+        if(dist < closestDist){ closestDist = dist; closest = dc; }
+      });
+      if(closest && closestDist <= tolerance && !fDays.includes(closest.day)) codes[closest.day] = t;
+    });
+    if(fDays.length || Object.keys(codes).length){
       const existing = peopleFound.find(p=>p.registration===registration);
-      if(existing) existing.days.push(...fDays);
-      else peopleFound.push({ registration, name, days: [...new Set(fDays)].sort((a,b)=>a-b) });
+      if(existing){ existing.days.push(...fDays); Object.assign(existing.codes, codes); }
+      else peopleFound.push({ registration, name, days: [...new Set(fDays)].sort((a,b)=>a-b), codes });
     }
   });
 
@@ -2902,7 +3037,11 @@ function renderImportMatchedList(){
         body += `<span class="status-tag" style="color:var(--c-disponivel);">✓ igual à escala</span>`;
       }
     }
-    const rosterNote = (!inRoster && days.length && !editing)
+    const codeDays = Object.keys(m.codes || {}).map(Number).filter(d => d >= 1 && d <= daysInMonth && !days.includes(d)).sort((a,b)=>a-b);
+    if(codeDays.length && !editing){
+      body += `<div class="imp-chips">${codeDays.map(d => `<span class="imp-chip" style="background:rgba(167,139,250,0.18); color:#A78BFA;">${d} · ${m.codes[d]}</span>`).join('')}</div><span class="status-tag" style="color:#A78BFA;">${codeDays.length} código${codeDays.length > 1 ? 's' : ''} de turno</span>`;
+    }
+    const rosterNote = (!inRoster && (days.length || codeDays.length) && !editing)
       ? `<span class="status-tag" style="color:var(--c-desejada);">Entra na escala do mês</span>` : '';
     html += `<div class="team-card imp-card">
       <div class="info">
@@ -2935,7 +3074,7 @@ function renderImportReviewBody(result){
     if(person){
       const reg = normalize(pf.registration);
       const days = importDayEdits[reg] ? importDayEdits[reg] : pf.days;
-      matched.push({ person, reg, days: [...days], pdfName: pf.name });
+      matched.push({ person, reg, days: [...days], codes: { ...(pf.codes || {}) }, pdfName: pf.name });
     }
     else unmatchedRegs.push(pf);
   });
@@ -3046,7 +3185,7 @@ document.getElementById('confirmImportBtn').addEventListener('click', ()=>{
 
   // As folgas do mês de cada pessoa passam a ser exatamente as do PDF (já com as
   // correções feitas no lápis). Folgas de outros meses não são tocadas.
-  let addedTotal = 0, removedTotal = 0;
+  let addedTotal = 0, removedTotal = 0, codesTotal = 0;
   pendingImport.matched.forEach(m=>{
     const pdfDays = [...new Set(m.days)].filter(d => d >= 1 && d <= daysInTargetMonth).sort((a,b)=>a-b);
     const current = state.offDays[m.person.id] || [];
@@ -3055,7 +3194,25 @@ document.getElementById('confirmImportBtn').addEventListener('click', ()=>{
     addedTotal += next.filter(ds => !currentMonth.includes(ds)).length;
     removedTotal += currentMonth.filter(ds => !next.includes(ds)).length;
     state.offDays[m.person.id] = current.filter(ds => !ds.startsWith(prefix)).concat(next);
-    if(next.length){
+    // Códigos de turno do PDF: só acrescenta/atualiza os que vieram no PDF (não apaga os que você já marcou)
+    const pdfCodes = Object.keys(m.codes || {}).map(Number)
+      .filter(d => d >= 1 && d <= daysInTargetMonth && !pdfDays.includes(d));
+    pdfCodes.forEach(d => {
+      const ds = iso(year, month, d);
+      if(!state.shiftCodes) state.shiftCodes = {};
+      if(!state.shiftCodes[ds]) state.shiftCodes[ds] = {};
+      if(state.shiftCodes[ds][m.person.id] !== m.codes[d]) codesTotal++;
+      state.shiftCodes[ds][m.person.id] = m.codes[d];
+    });
+    // folga e turno diferente não convivem: se o dia virou folga, tira o código
+    pdfDays.forEach(d => {
+      const ds = iso(year, month, d);
+      if(state.shiftCodes && state.shiftCodes[ds] && state.shiftCodes[ds][m.person.id]){
+        delete state.shiftCodes[ds][m.person.id];
+        if(!Object.keys(state.shiftCodes[ds]).length) delete state.shiftCodes[ds];
+      }
+    });
+    if(next.length || pdfCodes.length){
       // Garante que essa pessoa também participa da escala desse mês.
       if(!state.monthRosters) state.monthRosters = {};
       if(!state.monthRosters[key]) state.monthRosters[key] = [];
@@ -3068,8 +3225,9 @@ document.getElementById('confirmImportBtn').addEventListener('click', ()=>{
   renderCalendar();
   renderEscalaList();
   renderTeam();
-  if(!addedTotal && !removedTotal) showToast('Nada mudou: a escala já estava igual ao PDF.');
-  else showToast(`Aplicado: ${addedTotal} folga${addedTotal === 1 ? '' : 's'} nova${addedTotal === 1 ? '' : 's'}, ${removedTotal} removida${removedTotal === 1 ? '' : 's'}.`);
+  const codesTxt = codesTotal ? `, ${codesTotal} código${codesTotal === 1 ? '' : 's'} de turno` : '';
+  if(!addedTotal && !removedTotal && !codesTotal) showToast('Nada mudou: a escala já estava igual ao PDF.');
+  else showToast(`Aplicado: ${addedTotal} folga${addedTotal === 1 ? '' : 's'} nova${addedTotal === 1 ? '' : 's'}, ${removedTotal} removida${removedTotal === 1 ? '' : 's'}${codesTxt}.`);
   requestCloseOverlay('importReviewModalOverlay');
 });
 
@@ -3307,10 +3465,17 @@ function genValidate(cfg, offs){
   return issues;
 }
 
+const GEN_CLEAN_MIN = 3; // meta: pelo menos 3 da Limpeza disponíveis em cada dia
+
 function genSolveOnce(cfg, rng){
   const N = cfg.people.length, D = cfg.D;
   const load = new Int32Array(D);
   const groupCnt = cfg.groups.map(() => new Int32Array(D));
+  const cleanIdx = cfg.cleanIdx || [];
+  const nClean = cleanIdx.length;
+  const isClean = new Array(N).fill(false);
+  cleanIdx.forEach(i => { isClean[i] = true; });
+  const cleanOff = new Int32Array(D); // quantos da Limpeza estão de folga em cada dia
   const personGroups = cfg.people.map((_, i) => {
     const out = [];
     cfg.groups.forEach((g, gi) => { if(g.includes(i)) out.push(gi); });
@@ -3320,12 +3485,12 @@ function genSolveOnce(cfg, rng){
 
   function removePerson(i){
     const a = offs[i]; if(!a) return;
-    for(let d = 0; d < D; d++) if(a[d]){ load[d]--; personGroups[i].forEach(g => groupCnt[g][d]--); }
+    for(let d = 0; d < D; d++) if(a[d]){ load[d]--; if(isClean[i]) cleanOff[d]--; personGroups[i].forEach(g => groupCnt[g][d]--); }
     offs[i] = null;
   }
   function addPerson(i, a){
     offs[i] = a;
-    for(let d = 0; d < D; d++) if(a[d]){ load[d]++; personGroups[i].forEach(g => groupCnt[g][d]++); }
+    for(let d = 0; d < D; d++) if(a[d]){ load[d]++; if(isClean[i]) cleanOff[d]++; personGroups[i].forEach(g => groupCnt[g][d]++); }
   }
   function place(i, noiseAmp){
     const costOff = new Float64Array(D);
@@ -3333,6 +3498,16 @@ function genSolveOnce(cfg, rng){
       let c = 10 * (2 * load[d] + 1);                 // equilibra a carga entre os dias
       if(load[d] + 1 > cfg.M) c += 1000;              // passou do limite por dia
       for(const g of personGroups[i]) c += 6000 * groupCnt[g][d]; // folgaria junto de alguém do grupo
+      if(isClean[i]){
+        // Limpeza: tenta deixar GEN_CLEAN_MIN disponíveis por dia. Cada folga que derruba
+        // a disponibilidade abaixo da meta custa caro (e cada pessoa a mais, mais caro ainda).
+        // Dentro do limite, prefere encher o dia até o máximo permitido de folgas (assim o maior
+        // número de dias fica com exatamente GEN_CLEAN_MIN disponíveis, e poucos com mais).
+        const allowed = Math.max(0, nClean - GEN_CLEAN_MIN);
+        const over = cleanOff[d] + 1 - allowed;
+        if(over > 0) c += 3000 * over * over;
+        else c += 25 * (-over);
+      }
       if(noiseAmp) c += rng() * noiseAmp;
       costOff[d] = c;
     }
@@ -3370,7 +3545,16 @@ function genSolveOnce(cfg, rng){
   const issues = genValidate(cfg, offs);
   let balance = 0;
   for(let d = 0; d < D; d++) balance += load[d] * load[d];
-  return { offs, issues, load: Array.from(load), score: issues.length * 100000 + balance };
+  // Limpeza: penaliza dias abaixo da meta (forte) e acima dela (leve), para escolher a melhor tentativa
+  let cleanPen = 0;
+  if(nClean){
+    for(let d = 0; d < D; d++){
+      const avail = nClean - cleanOff[d];
+      if(avail < GEN_CLEAN_MIN) cleanPen += 400 * (GEN_CLEAN_MIN - avail) * (GEN_CLEAN_MIN - avail);
+      else if(avail > GEN_CLEAN_MIN) cleanPen += 40 * (avail - GEN_CLEAN_MIN);
+    }
+  }
+  return { offs, issues, load: Array.from(load), cleanOff: Array.from(cleanOff), score: issues.length * 100000 + balance + cleanPen };
 }
 
 async function genRun(cfg, seed){
@@ -3394,14 +3578,13 @@ const GEN_GROUP_ORDER = ['lider','operador','porao','limpeza','restituicao'];
 const GEN_STEPS = [
   { eyebrow: 'Pessoas',      title: 'Quem entra na escala?' },
   { eyebrow: 'Pedidos',      title: 'Algum dia específico?' },
-  { eyebrow: 'Folgas fixas', title: 'Alguém tem folga fixa?' },
   { eyebrow: 'FA',           title: 'Quem teve FA mês passado?' },
   { eyebrow: 'Restrições',   title: 'Quem não pode folgar junto?' },
   { eyebrow: 'Regras',       title: 'Regras da escala' },
   { eyebrow: 'Resultado',    title: 'Escala gerada' }
 ];
 const GEN_DOW_LETTERS = ['D','S','T','Q','Q','S','S'];
-const GEN_STEP_FA = 3, GEN_STEP_RULES = 5, GEN_STEP_RESULT = 6;
+const GEN_STEP_FA = 2, GEN_STEP_RULES = 4, GEN_STEP_RESULT = 5;
 let gen = null; // estado do assistente (null = fechado)
 
 function genEsc(s){
@@ -3431,10 +3614,10 @@ function genSaveDraft(){
     const requests = {};
     Object.keys(gen.requests).forEach(pid => { requests[pid] = [...gen.requests[pid]]; });
     localStorage.setItem(GEN_DRAFT_KEY, JSON.stringify({
-      v: 1, savedAt: Date.now(),
+      v: 2, savedAt: Date.now(),
       step: Math.min(gen.step, GEN_STEP_RULES),
       year: gen.year, month: gen.month,
-      selected: [...gen.selected], requests, fixed: gen.fixed,
+      selected: [...gen.selected], requests,
       faLast: [...gen.faLast], savedOff: gen.savedOff,
       extraGroups: gen.extraGroups, rules: gen.rules
     }));
@@ -3445,7 +3628,7 @@ function genLoadDraft(){
     const raw = localStorage.getItem(GEN_DRAFT_KEY);
     if(!raw) return null;
     const d = JSON.parse(raw);
-    if(!d || d.v !== 1 || !Number.isInteger(d.month) || !Number.isInteger(d.year)) return null;
+    if(!d || (d.v !== 1 && d.v !== 2) || !Number.isInteger(d.month) || !Number.isInteger(d.year)) return null;
     return d;
   }catch(e){ return null; }
 }
@@ -3461,8 +3644,7 @@ function genRestoreDraft(d){
     const days = (d.requests[pid] || []).filter(n => Number.isInteger(n));
     if(ids.has(pid) && days.length) gen.requests[pid] = new Set(days);
   });
-  gen.fixed = (d.fixed || []).filter(r => ids.has(r.pid) && Array.isArray(r.dows))
-    .map(r => ({ id: r.id || genUid(), pid: r.pid, dows: r.dows.filter(w => w >= 0 && w <= 6) }));
+  gen.fixed = []; // o passo de folgas fixas foi removido: dias fixos são marcados em "Pedidos"
   gen.faLast = new Set((d.faLast || []).filter(id => ids.has(id)));
   gen.faRecorded = Array.isArray((state.faMonths || {})[genPrevMonthKey()]);
   gen.savedOff = d.savedOff || {};
@@ -3473,8 +3655,10 @@ function genRestoreDraft(d){
     maxSun: genClamp(r.maxSun || 5, 2, 8),
     maxPerDay: Number.isInteger(r.maxPerDay) ? Math.max(1, r.maxPerDay) : null
   };
-  gen.step = genClamp(d.step || 0, 0, GEN_STEP_RULES);
-  genNormalizeFixed();
+  // rascunhos antigos (v1) tinham o passo "Folgas fixas" no meio: reajusta o número do passo
+  let st = d.step || 0;
+  if(d.v === 1 && st >= 2) st -= 1;
+  gen.step = genClamp(st, 0, GEN_STEP_RULES);
 }
 
 // ---- abrir / fechar ----
@@ -3623,8 +3807,10 @@ function genBuildConfig(){
     };
   });
   const groups = genActiveGroups(ids).map(g => g.map(id => ids.indexOf(id)));
+  // Regra fixa: a equipe da Limpeza tenta manter pelo menos GEN_CLEAN_MIN disponíveis por dia
+  const cleanIdx = people.map((p, i) => genGroupOf(p) === 'limpeza' ? i : -1).filter(i => i >= 0);
   return {
-    year: gen.year, month: gen.month, D, dows, people: cfgPeople, groups,
+    year: gen.year, month: gen.month, D, dows, people: cfgPeople, groups, cleanIdx,
     W: gen.rules.maxWork, SW: gen.rules.maxSun, M: genCurrentM(),
     rules: { offs: gen.rules.offs }, maxOffs: MAX_OFF_DAYS_PER_MONTH
   };
@@ -3710,7 +3896,7 @@ function genRender(animate){
   document.getElementById('genEyebrow').textContent = `Passo ${gen.step + 1} de ${GEN_STEPS.length} · ${st.eyebrow}`;
   document.getElementById('genTitle').textContent = st.title;
   document.querySelectorAll('#genProgress span').forEach((el, i) => el.classList.toggle('done', i <= gen.step));
-  const builders = [genStep0, genStep1, genStep2, genStepFa, genStep3, genStep4, genStep5];
+  const builders = [genStep0, genStep1, genStepFa, genStep3, genStep4, genStep5];
   const body = document.getElementById('genBody');
   const cls = animate ? (gen.dir > 0 ? 'anim-fwd' : 'anim-back') : '';
   body.innerHTML = `<div class="gen-step ${cls}">${builders[gen.step]()}</div>`;
@@ -3816,35 +4002,6 @@ function genStep1(){
   return html;
 }
 
-// Passo 3 — folgas fixas semanais
-function genNormalizeFixed(){
-  const ids = genSelectedPeople().map(p => p.id);
-  gen.fixed.forEach(row => { if(!ids.includes(row.pid)) row.pid = ids[0]; });
-}
-function genStep2(){
-  const people = genSelectedPeople();
-  let html = `<p class="gen-lead">Existe alguém com <b>folga fixa</b> toda semana (por exemplo, todo sábado)? Adicione abaixo. Isso vale só para esta escala, ninguém fica marcado para sempre.</p>`;
-  if(!gen.fixed.length){
-    html += `<p class="gen-lead" style="margin-top:-6px;">Se ninguém tem, é só continuar.</p>`;
-  }
-  gen.fixed.forEach(row => {
-    html += `<div class="gen-row" data-rid="${row.id}">
-      <div class="gen-row-top">
-        <select class="gen-select" data-act="fixedPerson" data-rid="${row.id}">
-          ${people.map(p => `<option value="${p.id}" ${p.id === row.pid ? 'selected' : ''}>${genEsc(p.name)}</option>`).join('')}
-        </select>
-        <button class="gen-x" data-act="fixedRemove" data-rid="${row.id}" title="Remover">✕</button>
-      </div>
-      <div class="gen-dows">
-        ${DOW.map((n, i) => `<button class="gen-pill sm ${row.dows.includes(i) ? 'on' : ''}" data-act="fixedDow" data-rid="${row.id}" data-dow="${i}"><span class="gen-check">✓</span>${capFirst(n)}</button>`).join('')}
-      </div>
-    </div>`;
-  });
-  html += `<button class="gen-add-btn" data-act="fixedAdd">+ Adicionar folga fixa</button>`;
-  return html;
-}
-
-// Passo 4 — quem teve FA no mês passado (marcação manual)
 function genFaPickable(){
   const fx = genFixedDowsByPid();
   return genSelectedPeople().filter(p => !(fx[p.id] && (fx[p.id].has(6) || fx[p.id].has(0))));
@@ -4081,7 +4238,6 @@ function genGo(step, dir){
   gen.dir = dir;
   gen.step = step;
   gen.runToken++;
-  if(step >= 2) genNormalizeFixed();
   genSaveDraft();
   if(step === GEN_STEP_RESULT){ genGenerate(true); return; }
   genRender(true);
@@ -4391,23 +4547,24 @@ function buildEscalaPdf(year, month){
   // dados de cada pessoa
   const info = {};
   roster.forEach(p => {
-    const offs = [], absent = [];
+    const offs = [], absent = [], codes = [];
     for(let d = 1; d <= D; d++){
       const ds = iso(year, month, d);
       offs.push(isOff(p.id, ds));
       absent.push(isAbsent(p.id, ds));
+      codes.push(offs[d - 1] ? null : getShiftCode(p.id, ds));
     }
     const faSet = new Set(genFaLabelDays(offs, dows));
     const reqSet = new Set();
     for(let d = 1; d <= D; d++) if(isRequestedOff(p.id, iso(year, month, d))) reqSet.add(d - 1);
-    info[p.id] = { offs, absent, faSet, reqSet, total: offs.filter(Boolean).length };
+    info[p.id] = { offs, absent, codes, faSet, reqSet, total: offs.filter(Boolean).length };
   });
 
   // Limpeza disponível por dia (quem é da Limpeza e não está de folga nem faltou)
   const limpezaList = (groups.find(g => g.gid === 'limpeza') || { list: [] }).list;
   const limpezaAvail = [];
   for(let d = 0; d < D; d++){
-    limpezaAvail.push(limpezaList.filter(p => !info[p.id].offs[d] && !info[p.id].absent[d]));
+    limpezaAvail.push(limpezaList.filter(p => !info[p.id].offs[d] && !info[p.id].absent[d] && !(info[p.id].codes[d] || '').startsWith('B')));
   }
   const hasLimp = limpezaList.length > 0;
 
@@ -4480,9 +4637,13 @@ function buildEscalaPdf(year, month){
         fill = isFa ? '#FF6B35' : (inf.reqSet.has(d) ? '#38BDF8' : '#CBD5E1');
         label = isFa ? 'FA' : 'F';
       }
+      else if(inf.codes[d]){ fill = '#C4B5FD'; label = inf.codes[d]; }
       else if(dows[d] === 0 || dows[d] === 6) fill = '#FFF4EC';
       doc.rect(x, y, dayW, pRow, fill, '#D1D5DB', 0.3);
-      if(label) doc.text(x + (dayW - pdfTextWidth(label, 7 * fs, true)) / 2, baseline, label, 7 * fs, true, lcolor);
+      if(label){
+        const lsz = label.length > 2 ? 5.6 * fs : 7 * fs;
+        doc.text(x + (dayW - pdfTextWidth(label, lsz, true)) / 2, baseline, label, lsz, true, lcolor);
+      }
     }
     doc.textCenter(dx0 + D * dayW + totW / 2, baseline, String(inf.total), 8 * fs, true, '#111827');
     doc.line(M, y + pRow, M + matrW + nameW, y + pRow, '#D1D5DB', 0.3);
@@ -4530,7 +4691,7 @@ function buildEscalaPdf(year, month){
   function drawLegend(){
     let x = M;
     const y = H - M - 4;
-    const items = [['#CBD5E1', 'F  Folga'], ['#FF6B35', 'FA  Folga agrupada'], ['#38BDF8', 'Dia pedido'], ['#FFF4EC', 'Fim de semana']];
+    const items = [['#CBD5E1', 'F  Folga'], ['#FF6B35', 'FA  Folga agrupada'], ['#38BDF8', 'Dia pedido'], ['#C4B5FD', 'A / B  Código de turno'], ['#FFF4EC', 'Fim de semana']];
     items.forEach(([c, label]) => {
       doc.rect(x, y - 7, 9, 9, c, '#9CA3AF', 0.4);
       doc.text(x + 13, y, label, 7.5, false, '#374151');
@@ -4619,7 +4780,7 @@ document.getElementById('exportPdfBtn').addEventListener('click', ()=>{
   }
   const list = document.getElementById('exportMonthList');
   list.innerHTML = months.map((x, i) =>
-    `<button class="btn-secondary" data-i="${i}" style="width:100%; text-align:left; padding:14px;">${x.label}<span style="color:var(--text-faint); font-weight:500;"> · ${x.current ? 'mês atual' : 'próximo mês'}</span></button>`
+    `<button class="btn-secondary" data-i="${i}" style="width:100%; text-align:left; padding:14px;">${x.label}</button>`
   ).join('');
   list.querySelectorAll('button').forEach(btn => {
     btn.addEventListener('click', () => {
