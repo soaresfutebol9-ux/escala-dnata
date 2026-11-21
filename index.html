@@ -817,6 +817,351 @@
     color: var(--text-dim);
     margin-bottom: 20px;
   }
+
+  /* --- Gerador automático de escala --- */
+  .head-actions{ display: flex; gap: 8px; align-items: center; }
+  .btn-magic{
+    background: linear-gradient(135deg, var(--accent), #ff9a3d);
+    color: #0F1720;
+    border: none;
+    font-family: 'Inter', sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    padding: 12px 16px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: transform 0.15s ease, filter 0.15s ease;
+    white-space: nowrap;
+  }
+  .btn-magic:hover{ filter: brightness(1.08); }
+  .btn-magic:active{ transform: scale(0.97); }
+
+  .gen-modal{
+    width: 100%;
+    max-width: 560px;
+    height: min(90vh, 780px);
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transition: max-width 0.35s ease;
+  }
+  .gen-modal.wide{ max-width: 980px; }
+  .modal-overlay.active .gen-modal{ animation: genPop 0.3s cubic-bezier(.2,.8,.2,1); }
+  @keyframes genPop{
+    from{ opacity: 0; transform: translateY(18px) scale(0.98); }
+    to{ opacity: 1; transform: none; }
+  }
+
+  .gen-head{ padding: 18px 20px 12px; flex-shrink: 0; }
+  .gen-head-top{ display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+  .gen-eyebrow{ font-size: 11.5px; font-weight: 700; color: var(--accent); letter-spacing: 0.04em; text-transform: uppercase; }
+  .gen-title{ font-family: 'Space Grotesk', sans-serif; font-size: 20px; font-weight: 700; margin-top: 2px; }
+  .gen-progress{ display: flex; gap: 5px; }
+  .gen-progress span{
+    flex: 1; height: 4px; border-radius: 4px;
+    background: var(--surface-3);
+    position: relative; overflow: hidden;
+  }
+  .gen-progress span::after{
+    content: ''; position: absolute; inset: 0;
+    background: var(--accent);
+    transform: scaleX(0); transform-origin: left;
+    transition: transform 0.4s ease;
+  }
+  .gen-progress span.done::after{ transform: scaleX(1); }
+
+  .gen-body{ flex: 1; overflow-y: auto; padding: 4px 20px 16px; overscroll-behavior: contain; }
+  .gen-step.anim-fwd{ animation: genInFwd 0.32s cubic-bezier(.2,.8,.2,1); }
+  .gen-step.anim-back{ animation: genInBack 0.32s cubic-bezier(.2,.8,.2,1); }
+  @keyframes genInFwd{ from{ opacity: 0; transform: translateX(26px); } to{ opacity: 1; transform: none; } }
+  @keyframes genInBack{ from{ opacity: 0; transform: translateX(-26px); } to{ opacity: 1; transform: none; } }
+
+  .gen-foot{
+    display: flex; gap: 8px;
+    padding: 14px 20px calc(14px + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+  .gen-foot button{ flex: 1; padding-left: 10px; padding-right: 10px; }
+  .gen-foot .btn-primary{ flex: 1.5; }
+  .gen-foot button:disabled{ opacity: 0.45; cursor: not-allowed; }
+
+  .gen-lead{ font-size: 14px; color: var(--text-dim); line-height: 1.5; margin: 4px 0 16px; }
+  .gen-lead b{ color: var(--text); font-weight: 600; }
+
+  .gen-month-row{ display: flex; gap: 8px; margin-bottom: 16px; }
+  .gen-select{
+    flex: 1;
+    background: var(--surface-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px 12px; font-family: 'Inter', sans-serif; font-size: 14px;
+    outline: none;
+  }
+  .gen-select:focus{ border-color: var(--accent); }
+  .gen-year-input{
+    width: 92px;
+    background: var(--surface-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px 12px; font-family: 'Inter', sans-serif; font-size: 14px;
+    outline: none;
+  }
+  .gen-year-input:focus{ border-color: var(--accent); }
+
+  .gen-group{
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 12px;
+    margin-bottom: 10px;
+  }
+  .gen-group-head{ display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .gen-group-head .dot{ width: 10px; height: 10px; border-radius: 3px; }
+  .gen-group-head .gname{ font-size: 14px; font-weight: 700; flex: 1; }
+  .gen-group-head .gcount{ font-size: 12px; color: var(--text-faint); font-weight: 600; }
+  .gen-link-btn{
+    background: none; border: none; color: var(--accent);
+    font-size: 12px; font-weight: 700; cursor: pointer; padding: 4px 6px;
+  }
+  .gen-pills{ display: flex; flex-wrap: wrap; gap: 7px; }
+  .gen-pill{
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--surface-3);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-family: 'Inter', sans-serif;
+    font-size: 13px; font-weight: 600;
+    padding: 8px 12px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease, transform 0.12s ease;
+  }
+  .gen-pill:active{ transform: scale(0.95); }
+  .gen-pill .gen-check{
+    width: 0; opacity: 0; overflow: hidden; font-size: 12px;
+    transition: width 0.18s ease, opacity 0.18s ease;
+  }
+  .gen-pill.on{ background: rgba(255,107,53,0.16); border-color: var(--accent); color: var(--text); }
+  .gen-pill.on .gen-check{ width: 12px; opacity: 1; color: var(--accent); }
+  .gen-pill.sm{ padding: 6px 10px; font-size: 12px; }
+
+  .gen-summary{
+    margin-top: 12px; padding: 10px 12px;
+    border-radius: 10px; font-size: 13px; font-weight: 600;
+    background: var(--surface-2); border: 1px dashed var(--border);
+    color: var(--text-dim);
+  }
+  .gen-summary b{ color: var(--accent); }
+
+  .gen-acc{
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    margin-bottom: 8px;
+    overflow: hidden;
+    transition: border-color 0.2s ease;
+  }
+  .gen-acc.open{ border-color: var(--c-desejada); }
+  .gen-acc-head{
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 14px; cursor: pointer;
+  }
+  .gen-acc-head .aname{ flex: 1; font-size: 14px; font-weight: 600; min-width: 0; }
+  .gen-badge{
+    font-size: 11.5px; font-weight: 700;
+    padding: 3px 9px; border-radius: 999px;
+    background: var(--surface-3); color: var(--text-faint);
+    transition: background 0.2s ease, color 0.2s ease;
+  }
+  .gen-badge.has{ background: rgba(56,189,248,0.18); color: var(--c-desejada); }
+  .gen-chev{ color: var(--text-faint); font-size: 12px; transition: transform 0.25s ease; }
+  .gen-acc.open .gen-chev{ transform: rotate(180deg); }
+  .gen-acc-body{ max-height: 0; overflow: hidden; transition: max-height 0.32s ease; }
+  .gen-acc.open .gen-acc-body{ max-height: 420px; }
+  .gen-acc-inner{ padding: 2px 12px 14px; }
+
+  .gen-cal{ display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+  .gen-cal .dow{ text-align: center; font-size: 10.5px; font-weight: 700; color: var(--text-faint); padding-bottom: 2px; }
+  .gen-cal button, .gen-cal .blank{ aspect-ratio: 1 / 1; border-radius: 8px; }
+  .gen-cal button{
+    border: 1px solid var(--border);
+    background: var(--surface-3);
+    color: var(--text-dim);
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 13px; font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, transform 0.12s ease, border-color 0.15s ease;
+  }
+  .gen-cal button.wk{ color: var(--text); }
+  .gen-cal button:active{ transform: scale(0.9); }
+  .gen-cal button.on{ background: var(--c-desejada); border-color: var(--c-desejada); color: #0F1720; }
+
+  .gen-row{
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px;
+    margin-bottom: 8px;
+    animation: genRowIn 0.25s ease;
+  }
+  @keyframes genRowIn{ from{ opacity: 0; transform: translateY(8px); } to{ opacity: 1; transform: none; } }
+  .gen-row-top{ display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+  .gen-row-top .gen-select{ min-width: 0; }
+  .gen-dows{ display: flex; gap: 6px; flex-wrap: wrap; }
+
+  .gen-add-btn{
+    width: 100%;
+    background: none;
+    border: 1.5px dashed var(--border);
+    color: var(--text-dim);
+    font-family: 'Inter', sans-serif; font-size: 13.5px; font-weight: 600;
+    padding: 13px; border-radius: 12px; cursor: pointer;
+    transition: border-color 0.15s ease, color 0.15s ease;
+  }
+  .gen-add-btn:hover{ border-color: var(--accent); color: var(--text); }
+
+  .gen-sec-title{ font-size: 12px; font-weight: 700; color: var(--text-faint); letter-spacing: 0.04em; text-transform: uppercase; margin: 18px 0 8px; }
+  .gen-sec-title:first-child{ margin-top: 4px; }
+
+  .gen-check-row{
+    display: flex; align-items: center; gap: 10px;
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: 12px; padding: 12px; margin-bottom: 8px; cursor: pointer;
+    transition: border-color 0.18s ease, opacity 0.18s ease;
+  }
+  .gen-check-row.off{ opacity: 0.5; }
+  .gen-check-row.on{ border-color: var(--accent); }
+  .gen-check-row .ctext{ flex: 1; font-size: 13.5px; font-weight: 600; line-height: 1.4; min-width: 0; }
+  .gen-tick{
+    width: 22px; height: 22px; border-radius: 7px; flex-shrink: 0;
+    border: 1.5px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; color: transparent; font-weight: 700;
+    transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+  }
+  .gen-check-row.on .gen-tick{ background: var(--accent); border-color: var(--accent); color: #0F1720; }
+  .gen-x{
+    background: none; border: none; color: var(--text-faint);
+    font-size: 15px; cursor: pointer; padding: 4px 6px; flex-shrink: 0;
+  }
+  .gen-x:hover{ color: var(--c-falta); }
+  .gen-warn-note{
+    font-size: 12px; font-weight: 600; color: #FBBF24;
+    background: rgba(251,191,36,0.10); border: 1px solid rgba(251,191,36,0.3);
+    border-radius: 10px; padding: 8px 10px; margin: -2px 0 8px; line-height: 1.4;
+  }
+  .gen-draft{
+    background: var(--surface-2); border: 1px solid var(--accent);
+    border-radius: 12px; padding: 12px; margin-bottom: 10px;
+    animation: genRowIn 0.25s ease;
+  }
+  .gen-draft .gen-draft-actions{ display: flex; gap: 8px; margin-top: 12px; }
+  .gen-draft .gen-draft-actions button{ flex: 1; padding: 10px; }
+
+  .gen-rule{
+    display: flex; align-items: center; gap: 12px;
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: 12px; padding: 12px 14px; margin-bottom: 8px;
+  }
+  .gen-rule .rtext{ flex: 1; min-width: 0; }
+  .gen-rule .rtitle{ font-size: 13.5px; font-weight: 600; }
+  .gen-rule .rhint{ font-size: 11.5px; color: var(--text-faint); margin-top: 2px; line-height: 1.35; }
+  .gen-stepper{ display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+  .gen-stepper button{
+    width: 32px; height: 32px; border-radius: 9px;
+    border: 1px solid var(--border); background: var(--surface-3); color: var(--text);
+    font-size: 17px; font-weight: 600; cursor: pointer;
+    transition: border-color 0.15s ease, transform 0.12s ease;
+  }
+  .gen-stepper button:hover{ border-color: var(--accent); }
+  .gen-stepper button:active{ transform: scale(0.9); }
+  .gen-stepper .val{
+    min-width: 34px; text-align: center;
+    font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 700;
+  }
+  .gen-rule.fixed .rtitle::after{ content: ' · fixa'; color: var(--text-faint); font-weight: 500; }
+  .gen-rule .lock{ font-size: 13px; color: var(--text-faint); }
+
+  /* tela de geração */
+  .gen-loading{ text-align: center; padding: 64px 20px; }
+  .gen-spinner{
+    width: 54px; height: 54px; margin: 0 auto 18px;
+    border-radius: 50%;
+    border: 4px solid var(--surface-3);
+    border-top-color: var(--accent);
+    animation: genSpin 0.8s linear infinite;
+  }
+  @keyframes genSpin{ to{ transform: rotate(360deg); } }
+  .gen-loading p{ font-size: 14px; color: var(--text-dim); font-weight: 500; }
+  .gen-loading .sub{ font-size: 12px; color: var(--text-faint); margin-top: 4px; }
+
+  /* resultado */
+  .gen-verdict{
+    display: flex; gap: 12px; align-items: flex-start;
+    border-radius: 12px; padding: 12px 14px; margin: 4px 0 14px;
+    animation: genRowIn 0.3s ease;
+  }
+  .gen-verdict.ok{ background: rgba(52,211,153,0.12); border: 1px solid rgba(52,211,153,0.4); }
+  .gen-verdict.warn{ background: rgba(251,191,36,0.10); border: 1px solid rgba(251,191,36,0.35); }
+  .gen-verdict .vicon{ font-size: 20px; line-height: 1.2; animation: genPopIcon 0.45s cubic-bezier(.2,1.4,.4,1); }
+  @keyframes genPopIcon{ from{ transform: scale(0); } to{ transform: scale(1); } }
+  .gen-verdict .vtitle{ font-size: 14px; font-weight: 700; }
+  .gen-verdict .vlist{ margin-top: 6px; font-size: 12.5px; color: var(--text-dim); line-height: 1.5; }
+  .gen-verdict .vlist div{ padding-left: 12px; position: relative; }
+  .gen-verdict .vlist div::before{ content: '•'; position: absolute; left: 0; color: #FBBF24; }
+
+  .gen-table-wrap{
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+    -webkit-overflow-scrolling: touch;
+  }
+  table.gen-table{ border-collapse: separate; border-spacing: 0; font-size: 11px; width: max-content; min-width: 100%; }
+  .gen-table th, .gen-table td{ text-align: center; padding: 0; border-bottom: 1px solid var(--border); }
+  .gen-table tr:last-child td, .gen-table tr:last-child th{ border-bottom: none; }
+  .gen-table th.nm, .gen-table td.nm{
+    position: sticky; left: 0; z-index: 2;
+    background: var(--surface);
+    text-align: left; padding: 0 10px;
+    min-width: 112px; max-width: 112px;
+    font-size: 12px; font-weight: 600;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    border-right: 1px solid var(--border);
+  }
+  .gen-table th.dh{ font-weight: 600; color: var(--text-dim); padding: 6px 0; min-width: 26px; background: var(--surface-2); }
+  .gen-table th.dh .dn{ display: block; font-family: 'Space Grotesk', sans-serif; font-size: 12px; color: var(--text); }
+  .gen-table th.dh .dw{ display: block; font-size: 9.5px; text-transform: uppercase; }
+  .gen-table th.dh.sun{ background: rgba(255,107,53,0.14); }
+  .gen-table th.nm{ background: var(--surface-2); }
+  .gen-table td.c{ height: 30px; min-width: 26px; }
+  .gen-table td.c.sun{ background: rgba(255,107,53,0.06); }
+  .gen-table td.tot{ min-width: 34px; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 12px; padding: 0 6px; }
+  .gen-table th.tot{ min-width: 34px; background: var(--surface-2); font-size: 10px; color: var(--text-dim); padding: 6px 4px; }
+  .gen-table td.tot.bad{ color: var(--c-falta); }
+  .gen-cell{
+    display: block; margin: 3px auto; width: 22px; height: 22px; line-height: 22px;
+    border-radius: 6px; font-size: 10.5px; font-weight: 700;
+    background: var(--c-folga); color: #fff;
+    animation: genCellIn 0.35s ease backwards;
+  }
+  .gen-cell.req{ background: var(--c-desejada); color: #0F1720; }
+  .gen-cell.fix{ background: var(--accent); color: #0F1720; }
+  @keyframes genCellIn{ from{ opacity: 0; transform: scale(0.4); } to{ opacity: 1; transform: none; } }
+  .gen-table tr.foot td{ background: var(--surface-2); font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 11.5px; height: 26px; color: var(--text-dim); }
+  .gen-table tr.foot td.nm{ background: var(--surface-2); font-family: 'Inter', sans-serif; font-size: 11px; }
+  .gen-table tr.foot td.over{ color: var(--c-falta); }
+  .gen-legend{ display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 12px; font-size: 11.5px; color: var(--text-dim); }
+  .gen-legend span{ display: inline-flex; align-items: center; gap: 6px; }
+  .gen-legend i{ width: 12px; height: 12px; border-radius: 4px; display: inline-block; }
+
+  @media (prefers-reduced-motion: reduce){
+    .modal-overlay.active .gen-modal, .gen-step, .gen-row, .gen-draft, .gen-verdict, .gen-verdict .vicon, .gen-cell{ animation: none !important; }
+    .gen-spinner{ animation-duration: 2s; }
+  }
+
+  .btn-magic.block{ display: block; width: 100%; margin-bottom: 16px; padding: 13px 16px; }
 </style>
 </head>
 <body>
@@ -855,6 +1200,7 @@
       <button class="btn-primary" id="importPdfBtn">📄 Importar PDF</button>
     </div>
     <input type="file" id="importPdfInput" accept="application/pdf" style="display:none;">
+    <button class="btn-magic block" id="genOpenBtn">✨ Gerar escala automática</button>
     <div class="escala-month-bar">
       <h3 id="escalaMonthLabel">—</h3>
       <div class="month-nav">
@@ -915,14 +1261,8 @@
 <div class="modal-overlay" id="pairModalOverlay">
   <div class="modal">
     <h3>Nova restrição de folga</h3>
-    <div class="field">
-      <label>Pessoa 1</label>
-      <select id="pairPersonASelect"></select>
-    </div>
-    <div class="field">
-      <label>Pessoa 2</label>
-      <select id="pairPersonBSelect"></select>
-    </div>
+    <p class="mini-hint" style="margin-bottom:12px;">Marque 2 ou mais pessoas que não podem folgar no mesmo dia.</p>
+    <div class="fn-options" id="pairMembersList" style="max-height:50vh; overflow-y:auto; margin-bottom:16px;"></div>
     <div class="modal-actions">
       <button class="btn-secondary" id="cancelPairBtn">Cancelar</button>
       <button class="btn-primary" id="savePairBtn">Salvar</button>
@@ -1029,6 +1369,24 @@
   </div>
 </div>
 
+<!-- Gerador automático de escala -->
+<div class="modal-overlay" id="genOverlay">
+  <div class="modal gen-modal" id="genModal">
+    <div class="gen-head">
+      <div class="gen-head-top">
+        <div>
+          <div class="gen-eyebrow" id="genEyebrow"></div>
+          <div class="gen-title" id="genTitle"></div>
+        </div>
+        <button class="icon-btn-sm" id="genCloseBtn" title="Fechar">✕</button>
+      </div>
+      <div class="gen-progress" id="genProgress"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+    </div>
+    <div class="gen-body" id="genBody"></div>
+    <div class="gen-foot" id="genFoot"></div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <!-- Firebase (banco de dados na nuvem) -->
@@ -1049,7 +1407,7 @@ const FUNCTIONS = [
 const DOW = ['dom','seg','ter','qua','qui','sex','sáb'];
 const MONTHS = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
 function capFirst(s){ return s.charAt(0).toUpperCase() + s.slice(1); }
-const DEFAULT_STATE = { people: [], offDays: {}, requestedOffDays: {}, absences: {}, dayAssignments: {}, airlines: [], flightDays: {}, publishedMonths: [], monthRosters: {}, coveragePairs: [] };
+const DEFAULT_STATE = { people: [], offDays: {}, requestedOffDays: {}, absences: {}, dayAssignments: {}, airlines: [], flightDays: {}, publishedMonths: [], monthRosters: {}, coveragePairs: [], faMonths: {} };
 
 // ---------- State ----------
 let state = Object.assign({}, DEFAULT_STATE);
@@ -1365,9 +1723,9 @@ function toggleOffDay(personId, dateStr){
 // que uma alteração torna um dia "de trabalho" para alguém (remover folga,
 // remover falta), para pegar erros de troca antes que virem 7 dias seguidos.
 const MAX_CONSECUTIVE_WORK_DAYS = 6;
-// Regra da empresa: cada pessoa precisa ter entre 5 e 7 folgas por mês.
+// Regra da empresa: cada pessoa precisa ter entre 5 e 9 folgas por mês.
 const MIN_OFF_DAYS_PER_MONTH = 5;
-const MAX_OFF_DAYS_PER_MONTH = 7;
+const MAX_OFF_DAYS_PER_MONTH = 9;
 
 function offDaysCountInMonth(personId, year, month){ // month 0-indexado
   const arr = state.offDays[personId] || [];
@@ -1434,10 +1792,24 @@ function warnIfConsecutiveViolation(personId, dateStr, revertFn){
 }
 
 // ---------- Duplas de cobertura: pessoas que não podem folgar no mesmo dia ----------
+// Cada restrição é um grupo de 2 ou mais pessoas que não podem folgar no mesmo dia.
+// Restrições antigas (formato {a, b}) continuam funcionando.
+function pairMembers(pair){
+  if(Array.isArray(pair.members)) return pair.members;
+  return [pair.a, pair.b].filter(Boolean);
+}
 function pairPartnersOf(personId){
-  return state.coveragePairs
-    .filter(pair => pair.a === personId || pair.b === personId)
-    .map(pair => pair.a === personId ? pair.b : pair.a);
+  const partners = new Set();
+  state.coveragePairs.forEach(pair=>{
+    const members = pairMembers(pair);
+    if(members.includes(personId)) members.forEach(m=>{ if(m !== personId) partners.add(m); });
+  });
+  return [...partners];
+}
+function joinNamesPT(ids){
+  const names = ids.map(personName);
+  if(names.length <= 1) return names.join('');
+  return names.slice(0, -1).join(', ') + ' e ' + names[names.length-1];
 }
 function personName(personId){
   const p = state.people.find(p=>p.id===personId);
@@ -1521,8 +1893,9 @@ function renderCoverageConflictBanner(){
     const dateStr = iso(calYear, calMonth, d);
     if(dateStr < todayStr) continue; // dia já passou — não mostra mais o aviso
     state.coveragePairs.forEach(pair=>{
-      if(isOff(pair.a, dateStr) && isOff(pair.b, dateStr)){
-        items.push(`${personName(pair.a)} e ${personName(pair.b)} estão de folga no dia ${formatDateBR(dateStr)}`);
+      const offTogether = pairMembers(pair).filter(pid => isOff(pid, dateStr));
+      if(offTogether.length >= 2){
+        items.push(`${joinNamesPT(offTogether)} estão de folga no dia ${formatDateBR(dateStr)}`);
       }
     });
   }
@@ -1981,7 +2354,7 @@ function renderPairList(){
   list.innerHTML = state.coveragePairs.map(pair=>{
     return `<div class="team-card">
       <div class="info">
-        <span class="name">${personName(pair.a)} ⇄ ${personName(pair.b)}</span>
+        <span class="name">${pairMembers(pair).map(personName).join(' ⇄ ')}</span>
       </div>
       <div class="actions">
         <button class="icon-btn-sm" data-action="delete-pair" data-id="${pair.id}" title="Remover dupla">🗑</button>
@@ -2000,12 +2373,19 @@ function renderPairList(){
 }
 
 function openPairModal(){
-  const aSel = document.getElementById('pairPersonASelect');
-  const bSel = document.getElementById('pairPersonBSelect');
-  const options = sortPeople(state.people).map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
-  aSel.innerHTML = options;
-  bSel.innerHTML = options;
-  if(state.people.length > 1) bSel.selectedIndex = 1;
+  const listEl = document.getElementById('pairMembersList');
+  listEl.innerHTML = sortPeople(state.people).map(p=>`<label class="fn-option" data-pid="${p.id}">
+      <input type="checkbox" value="${p.id}">
+      <span class="lbl">${p.name}</span>
+    </label>`).join('');
+  listEl.querySelectorAll('.fn-option').forEach(opt=>{
+    opt.addEventListener('click', (e)=>{
+      e.preventDefault();
+      const input = opt.querySelector('input');
+      input.checked = !input.checked;
+      opt.classList.toggle('checked', input.checked);
+    });
+  });
   document.getElementById('pairModalOverlay').classList.add('active');
   pushOverlay('pairModalOverlay');
 }
@@ -2015,7 +2395,7 @@ function closePairModal(){
 registerOverlay('pairModalOverlay', closePairModal);
 document.getElementById('addPairBtn').addEventListener('click', ()=>{
   if(state.people.length < 2){
-    showToast('Cadastre pelo menos duas pessoas na equipe antes de criar uma dupla.');
+    showToast('Cadastre pelo menos duas pessoas na equipe antes de criar uma restrição.');
     return;
   }
   openPairModal();
@@ -2025,24 +2405,24 @@ document.getElementById('pairModalOverlay').addEventListener('click', (e)=>{
   if(e.target.id === 'pairModalOverlay') requestCloseOverlay('pairModalOverlay');
 });
 document.getElementById('savePairBtn').addEventListener('click', ()=>{
-  const a = document.getElementById('pairPersonASelect').value;
-  const b = document.getElementById('pairPersonBSelect').value;
-  if(!a || !b || a === b){
-    showToast('Escolha duas pessoas diferentes.');
+  const members = [...document.querySelectorAll('#pairMembersList input:checked')].map(i=>i.value);
+  if(members.length < 2){
+    showToast('Marque pelo menos duas pessoas.');
     return;
   }
+  const key = [...members].sort().join('|');
   const alreadyExists = state.coveragePairs.some(pr =>
-    (pr.a===a && pr.b===b) || (pr.a===b && pr.b===a)
+    [...pairMembers(pr)].sort().join('|') === key
   );
   if(alreadyExists){
-    showToast('Essa dupla já existe.');
+    showToast('Essa restrição já existe.');
     return;
   }
-  state.coveragePairs.push({ id: 'pair_'+Date.now()+'_'+Math.floor(Math.random()*1000), a, b });
+  state.coveragePairs.push({ id: 'pair_'+Date.now()+'_'+Math.floor(Math.random()*1000), members });
   saveState();
   renderPairList();
   requestCloseOverlay('pairModalOverlay');
-  showToast('Dupla de cobertura criada.');
+  showToast('Restrição de folga criada.');
 });
 
 // ---------- Person modal ----------
@@ -2144,7 +2524,9 @@ document.getElementById('deletePersonBtn').addEventListener('click', ()=>{
     state.monthRosters[key] = state.monthRosters[key].filter(id=>id!==editingPersonId);
     if(state.monthRosters[key].length===0) delete state.monthRosters[key];
   });
-  state.coveragePairs = (state.coveragePairs||[]).filter(pr => pr.a!==editingPersonId && pr.b!==editingPersonId);
+  state.coveragePairs = (state.coveragePairs||[])
+    .map(pr => ({ id: pr.id, members: pairMembers(pr).filter(m => m !== editingPersonId) }))
+    .filter(pr => pr.members.length >= 2);
   saveState();
   renderTeam();
   renderPairList();
@@ -2815,6 +3197,1067 @@ document.getElementById('confirmImportBtn').addEventListener('click', ()=>{
   showToast(`Importado: ${addedTotal} folga(s) nova(s) adicionada(s)${alreadyOffTotal ? `, ${alreadyOffTotal} já estavam marcadas` : ''}.`);
   requestCloseOverlay('importReviewModalOverlay');
 });
+
+// ---------- Gerador automático de escala: motor ----------
+// O motor não mexe na tela nem no estado do app: recebe uma "config" pronta e
+// devolve as folgas de cada pessoa. Para cada pessoa ele resolve, por
+// programação dinâmica, o melhor padrão de folgas possível (respeitando as
+// regras duras) dado o que as outras pessoas já têm — e repete isso em rodadas
+// até a escala se estabilizar. Assim a carga de folgas fica equilibrada entre
+// os dias e as restrições de "não folgar junto" são evitadas.
+const GEN_INF = 1e12;
+let _genBuf = null;
+const genTick = () => new Promise(r => setTimeout(r, 0));
+
+function genMulberry(seed){
+  let a = seed >>> 0;
+  return function(){
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+function genDayInfo(year, month){
+  const D = new Date(year, month + 1, 0).getDate();
+  const dows = [];
+  for(let d = 1; d <= D; d++) dows.push(new Date(year, month, d).getDay());
+  return { D, dows };
+}
+
+// Melhor padrão de folgas para UMA pessoa, dado o custo de folgar em cada dia.
+// Regras duras: meta de folgas, máx. de dias seguidos, domingo, e folga agrupada (FA).
+// FA = 2 folgas seguidas em sáb+dom ou dom+seg. O 1º dia da FA CONTA na sequência
+// de dias trabalhados (não é descanso); só o 2º dia zera a contagem. Fora da FA,
+// ninguém folga 2 dias seguidos.
+// relax: 0 = todas as regras; 1 = +1 folga; 2 = solta a regra do domingo;
+// 3 = FA deixa de ser obrigatória; 4 = permite folgas coladas fora da FA (com custo);
+// 5 = permite 1 dia seguido a mais. Retorna array de booleanos (true = folga) ou null.
+function genBestPattern(P, cfg, costOff, relax){
+  const D = cfg.D, dows = cfg.dows;
+  const K = Math.min(P.K + (relax >= 1 ? 1 : 0), 12);
+  const W = cfg.W + (relax >= 5 ? 1 : 0);
+  const SW = cfg.SW;
+  const sunRule = P.sunRule && relax < 2;
+  const maxSun = sunRule ? Math.max(1, P.forcedSundays) : 0;
+  const faEnabled = P.faMode === 'must';
+  const mustEnd = faEnabled && relax < 3;
+  const adjOk = relax >= 4;
+  const O = K + 1, R = W + 1, S = maxSun + 1, T = SW + 1, F = 3, A = faEnabled ? 2 : 1;
+  // índice do estado: o (folgas), r (dias seguidos), s (domingos de folga), t (domingos seguidos
+  // trabalhados), f (0 = ontem trabalhou, 1 = ontem folga comum, 2 = ontem foi o 1º dia da FA), a (FA já usada)
+  const sF = A, sT = F * A, sS = T * sT, sR = S * sS, sO = R * sR;
+  const size = O * sO;
+  const need = (D + 1) * size;
+  if(!_genBuf || _genBuf.length < need) _genBuf = new Float64Array(need);
+  const V = _genBuf;
+
+  const endBase = D * size;
+  for(let o = 0; o < O; o++) for(let r = 0; r < R; r++) for(let s = 0; s < S; s++) for(let t = 0; t < T; t++) for(let f = 0; f < F; f++) for(let a = 0; a < A; a++){
+    const ok = (o === K) && (!sunRule || s >= 1) && (!mustEnd || a === 1) && f !== 2;
+    V[endBase + o*sO + r*sR + s*sS + t*sT + f*sF + a] = ok ? 0 : GEN_INF;
+  }
+
+  const res = new Float64Array(6); // [custoFolga, idxFolga, custoFA, idxFA, custoTrab, idxTrab]
+  function evalState(d, o, r, s, t, f, a){
+    const nxt = (d + 1) * size;
+    const dow = dows[d], isSun = dow === 0;
+    const forced = P.forced[d];
+    const sunOffOk = !sunRule || !isSun || s < maxSun;
+    const ns = (sunRule && isSun) ? s + 1 : s;
+    const nt = (sunRule && isSun) ? 0 : t;
+    res[0] = GEN_INF; res[2] = GEN_INF; res[4] = GEN_INF;
+    // folga comum (ou 2º dia da FA, quando f === 2)
+    if(o < K && sunOffOk){
+      let ok = false, pen = 0;
+      if(f === 0 || f === 2) ok = true;
+      else if(forced && d > 0 && P.forced[d-1]) ok = true;      // pedidos/fixas coladas: o usuário quis assim
+      else if(adjOk){ ok = true; pen = 150; }
+      if(ok){
+        const idx = (o+1)*sO + 0*sR + ns*sS + nt*sT + 1*sF + a;
+        const v = V[nxt + idx];
+        if(v < GEN_INF){ res[0] = costOff[d] + pen + v; res[1] = idx; }
+      }
+    }
+    // 1º dia da FA (sábado ou domingo), conta na sequência de dias seguidos
+    if(faEnabled && a === 0 && f === 0 && o < K && sunOffOk && (dow === 6 || dow === 0) && d + 1 < D && r < W){
+      const idx = (o+1)*sO + (r+1)*sR + ns*sS + nt*sT + 2*sF + 1;
+      const v = V[nxt + idx];
+      if(v < GEN_INF){ res[2] = costOff[d] + v; res[3] = idx; }
+    }
+    // trabalho
+    if(f !== 2 && !forced && r < W && (!sunRule || !isSun || t < SW)){
+      const wt = (sunRule && isSun) ? t + 1 : t;
+      const idx = o*sO + (r+1)*sR + s*sS + wt*sT + 0*sF + a;
+      const v = V[nxt + idx];
+      if(v < GEN_INF){ res[4] = v; res[5] = idx; }
+    }
+  }
+
+  for(let d = D - 1; d >= 0; d--){
+    const base = d * size;
+    // só vale calcular estados alcançáveis: não dá para ter mais folgas que dias passados
+    // nem faltar mais folgas do que dias restantes. O resto fica como inviável.
+    V.fill(GEN_INF, base, base + size);
+    const oLo = Math.max(0, K - (D - d)), oHi = Math.min(K, d);
+    for(let o = oLo; o <= oHi; o++) for(let r = 0; r < R; r++) for(let s = 0; s < S; s++) for(let t = 0; t < T; t++) for(let f = 0; f < F; f++) for(let a = 0; a < A; a++){
+      evalState(d, o, r, s, t, f, a);
+      let best = res[0];
+      if(res[2] < best) best = res[2];
+      if(res[4] < best) best = res[4];
+      V[base + o*sO + r*sR + s*sS + t*sT + f*sF + a] = best;
+    }
+  }
+
+  let o = 0, r = Math.min(P.carryWork, W), s = 0, t = sunRule ? Math.min(P.carrySun, SW) : 0, f = 0, a = 0;
+  if(V[o*sO + r*sR + s*sS + t*sT + f*sF + a] >= GEN_INF) return null;
+  const off = new Array(D).fill(false);
+  for(let d = 0; d < D; d++){
+    evalState(d, o, r, s, t, f, a);
+    let idx, isOff;
+    if(res[0] <= res[2] && res[0] <= res[4] && res[0] < GEN_INF){ idx = res[1]; isOff = true; }
+    else if(res[2] <= res[4] && res[2] < GEN_INF){ idx = res[3]; isOff = true; }
+    else if(res[4] < GEN_INF){ idx = res[5]; isOff = false; }
+    else return null; // não deveria acontecer se o estado inicial era viável
+    off[d] = isOff;
+    o = Math.floor(idx / sO); let rem = idx - o * sO;
+    r = Math.floor(rem / sR); rem -= r * sR;
+    s = Math.floor(rem / sS); rem -= s * sS;
+    t = Math.floor(rem / sT); rem -= t * sT;
+    f = Math.floor(rem / sF); a = rem - f * sF;
+  }
+  return off;
+}
+
+// Plano B quando nenhuma versão das regras fecha: respeita os pedidos/fixas e o
+// limite de dias seguidos, e distribui o resto. A validação vai apontar o que sobrou.
+function genFallbackPattern(P, cfg){
+  const D = cfg.D;
+  const off = Array.from({ length: D }, (_, d) => !!P.forced[d]);
+  let run = P.carryWork;
+  for(let d = 0; d < D; d++){
+    if(off[d]) run = 0;
+    else { run++; if(run > cfg.W){ off[d] = true; run = 0; } }
+  }
+  let count = off.filter(Boolean).length;
+  while(count < P.K){
+    let bestD = -1, bestDist = -1;
+    for(let d = 0; d < D; d++){
+      if(off[d]) continue;
+      let dist = D;
+      for(let e = 0; e < D; e++) if(off[e]) dist = Math.min(dist, Math.abs(e - d));
+      if(dist > bestDist){ bestDist = dist; bestD = d; }
+    }
+    if(bestD < 0) break;
+    off[bestD] = true; count++;
+  }
+  return off;
+}
+
+// Dias que são o 1º dia de uma FA (duas folgas seguidas em sáb+dom ou dom+seg).
+function genFaFirstDays(a, dows){
+  const out = [];
+  for(let d = 0; d < a.length - 1; d++){
+    if(a[d] && a[d+1] && (dows[d] === 6 || dows[d] === 0)) out.push(d);
+  }
+  return out;
+}
+
+function genValidate(cfg, offs){
+  const issues = [];
+  const D = cfg.D, dows = cfg.dows;
+  cfg.people.forEach((P, i) => {
+    const a = offs[i];
+    const count = a.filter(Boolean).length;
+    if(count < cfg.rules.offs) issues.push(`${P.name}: ${count} folga(s), abaixo da meta de ${cfg.rules.offs}`);
+    if(count > cfg.maxOffs) issues.push(`${P.name}: ${count} folgas, acima do máximo de ${cfg.maxOffs}`);
+
+    const faDays = genFaFirstDays(a, dows);
+    const isFaFirst = new Array(D).fill(false);
+    faDays.forEach(d => { isFaFirst[d] = true; });
+
+    // dias seguidos: o 1º dia da FA conta na sequência, só o 2º dia zera
+    let run = P.carryWork;
+    for(let d = 0; d < D; d++){
+      if(a[d] && !isFaFirst[d]) run = 0;
+      else { run++; if(run > cfg.W){ issues.push(`${P.name}: passa de ${cfg.W} dias seguidos (dia ${d+1})`); break; } }
+    }
+
+    // folgas coladas fora da FA
+    for(let d = 0; d < D - 1; d++){
+      if(a[d] && a[d+1] && !isFaFirst[d] && !(P.forced[d] && P.forced[d+1]) && !(d > 0 && isFaFirst[d-1])){
+        issues.push(`${P.name}: folgas coladas nos dias ${d+1} e ${d+2} fora de uma FA`);
+        break;
+      }
+    }
+    if(P.faMode === 'must' && faDays.length === 0) issues.push(`${P.name}: ficou sem FA neste mês`);
+    if(P.faMode === 'must' && faDays.length > 1) issues.push(`${P.name}: mais de uma FA no mês`);
+    if(P.faMode === 'never' && faDays.length > 0 && !faDays.every(d => P.forced[d] && P.forced[d+1])){
+      issues.push(`${P.name}: ganhou FA, mas já teve no mês passado`);
+    }
+
+    if(P.sunRule){
+      let sunOff = 0, t = P.carrySun, chainBroken = false;
+      for(let d = 0; d < D; d++){
+        if(dows[d] !== 0) continue;
+        if(a[d]) { sunOff++; t = 0; }
+        else { t++; if(t > cfg.SW && !chainBroken){ chainBroken = true; issues.push(`${P.name}: passa de ${cfg.SW} domingos seguidos sem folga (dia ${d+1})`); } }
+      }
+      const allowed = Math.max(1, P.forcedSundays);
+      if(sunOff === 0) issues.push(`${P.name}: nenhum domingo de folga no mês`);
+      else if(sunOff > allowed) issues.push(`${P.name}: ${sunOff} domingos de folga (o certo é 1)`);
+    }
+  });
+  for(let d = 0; d < D; d++){
+    let n = 0;
+    for(let i = 0; i < offs.length; i++) if(offs[i][d]) n++;
+    if(n > cfg.M) issues.push(`Dia ${d+1}: ${n} pessoas de folga (limite ${cfg.M})`);
+  }
+  cfg.groups.forEach(g => {
+    for(let d = 0; d < D; d++){
+      const together = g.filter(i => offs[i][d]);
+      if(together.length >= 2){
+        issues.push(`${together.map(i => cfg.people[i].name).join(', ')} folgam juntos no dia ${d+1}`);
+      }
+    }
+  });
+  return issues;
+}
+
+function genSolveOnce(cfg, rng){
+  const N = cfg.people.length, D = cfg.D;
+  const load = new Int32Array(D);
+  const groupCnt = cfg.groups.map(() => new Int32Array(D));
+  const personGroups = cfg.people.map((_, i) => {
+    const out = [];
+    cfg.groups.forEach((g, gi) => { if(g.includes(i)) out.push(gi); });
+    return out;
+  });
+  const offs = new Array(N).fill(null);
+
+  function removePerson(i){
+    const a = offs[i]; if(!a) return;
+    for(let d = 0; d < D; d++) if(a[d]){ load[d]--; personGroups[i].forEach(g => groupCnt[g][d]--); }
+    offs[i] = null;
+  }
+  function addPerson(i, a){
+    offs[i] = a;
+    for(let d = 0; d < D; d++) if(a[d]){ load[d]++; personGroups[i].forEach(g => groupCnt[g][d]++); }
+  }
+  function place(i, noiseAmp){
+    const costOff = new Float64Array(D);
+    for(let d = 0; d < D; d++){
+      let c = 10 * (2 * load[d] + 1);                 // equilibra a carga entre os dias
+      if(load[d] + 1 > cfg.M) c += 1000;              // passou do limite por dia
+      for(const g of personGroups[i]) c += 6000 * groupCnt[g][d]; // folgaria junto de alguém do grupo
+      if(noiseAmp) c += rng() * noiseAmp;
+      costOff[d] = c;
+    }
+    // Viabilidade não depende dos custos: guarda o menor nível de relaxamento que funcionou
+    // para a pessoa e não perde tempo refazendo os níveis que já falharam.
+    const P = cfg.people[i];
+    let pat = null;
+    for(let relax = P._minRelax || 0; relax <= 5 && !pat; relax++){
+      pat = genBestPattern(P, cfg, costOff, relax);
+      if(pat) P._minRelax = relax;
+    }
+    if(!pat){ pat = genFallbackPattern(P, cfg); P._minRelax = 6; }
+    addPerson(i, pat);
+    return pat;
+  }
+
+  // mais travados primeiro (quem tem pedidos/folgas fixas), com desempate aleatório
+  const order = cfg.people.map((P, i) => ({ i, k: P.forcedCount + rng() * 0.9 }))
+    .sort((a, b) => b.k - a.k).map(x => x.i);
+  order.forEach(i => place(i, 40));
+
+  for(let round = 0; round < 6; round++){
+    let changed = false;
+    const idx = order.slice();
+    for(let k = idx.length - 1; k > 0; k--){ const j = Math.floor(rng() * (k + 1)); [idx[k], idx[j]] = [idx[j], idx[k]]; }
+    idx.forEach(i => {
+      const old = offs[i];
+      removePerson(i);
+      const pat = place(i, round < 2 ? 6 : 0);
+      if(pat.some((v, d) => v !== old[d])) changed = true;
+    });
+    if(!changed) break;
+  }
+
+  const issues = genValidate(cfg, offs);
+  let balance = 0;
+  for(let d = 0; d < D; d++) balance += load[d] * load[d];
+  return { offs, issues, load: Array.from(load), score: issues.length * 100000 + balance };
+}
+
+async function genRun(cfg, seed){
+  const rng = genMulberry(seed);
+  let best = null;
+  const TRIES = 6;
+  let stall = 0;
+  for(let k = 0; k < TRIES; k++){
+    const sol = genSolveOnce(cfg, rng);
+    if(!best || sol.score < best.score){ best = sol; stall = 0; } else stall++;
+    if(k >= 1 && best.issues.length === 0) break;
+    if(stall >= 2) break; // já não está melhorando
+    await genTick();
+  }
+  return best;
+}
+
+
+// ---------- Gerador automático de escala: assistente ----------
+const GEN_GROUP_ORDER = ['lider','operador','porao','limpeza','restituicao'];
+const GEN_STEPS = [
+  { eyebrow: 'Pessoas',      title: 'Quem entra na escala?' },
+  { eyebrow: 'Pedidos',      title: 'Algum dia específico?' },
+  { eyebrow: 'Folgas fixas', title: 'Alguém tem folga fixa?' },
+  { eyebrow: 'FA',           title: 'Quem teve FA mês passado?' },
+  { eyebrow: 'Restrições',   title: 'Quem não pode folgar junto?' },
+  { eyebrow: 'Regras',       title: 'Regras da escala' },
+  { eyebrow: 'Resultado',    title: 'Escala gerada' }
+];
+const GEN_DOW_LETTERS = ['D','S','T','Q','Q','S','S'];
+const GEN_STEP_FA = 3, GEN_STEP_RULES = 5, GEN_STEP_RESULT = 6;
+let gen = null; // estado do assistente (null = fechado)
+
+function genEsc(s){
+  return (s == null ? '' : String(s)).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+}
+function genUid(){ return 'g' + Date.now().toString(36) + Math.floor(Math.random() * 46656).toString(36); }
+function genClamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
+function genGroupOf(p){
+  const fns = p.functions || [];
+  for(const id of GEN_GROUP_ORDER) if(fns.includes(id)) return id;
+  return 'none';
+}
+function genSelectedPeople(){ return sortPeople(state.people.filter(p => gen.selected.has(p.id))); }
+function genMonthName(){ return MONTHS[gen.month]; }
+function genAutoM(){
+  const N = genSelectedPeople().length;
+  const D = genDayInfo(gen.year, gen.month).D;
+  return Math.max(1, Math.ceil(N * gen.rules.offs / D) + 1);
+}
+function genCurrentM(){ return gen.rules.maxPerDay != null ? gen.rules.maxPerDay : genAutoM(); }
+
+// ---- abrir / fechar ----
+function genOpen(){
+  if(!state.people.length){
+    showToast('Cadastre sua equipe na aba "Equipe" antes de gerar a escala.');
+    return;
+  }
+  const rosterIds = ((state.monthRosters || {})[monthKey(calYear, calMonth)] || []).filter(id => state.people.some(p => p.id === id));
+  gen = {
+    step: 0, dir: 1, year: calYear, month: calMonth,
+    selected: new Set(rosterIds.length ? rosterIds : state.people.map(p => p.id)),
+    requests: {}, fixed: [], faLast: new Set(), savedOff: {}, extraGroups: [], draft: null, openReq: null,
+    rules: { offs: 8, maxWork: 5, maxSun: 5, maxPerDay: null },
+    result: null, runToken: 0
+  };
+  genPrefillRequests();
+  genPrefillFa();
+  document.getElementById('genOverlay').classList.add('active');
+  pushOverlay('genOverlay');
+  genRender(true);
+}
+function genClose(){
+  document.getElementById('genOverlay').classList.remove('active');
+  gen = null;
+}
+registerOverlay('genOverlay', genClose);
+
+// Aproveita os "dias desejados" que já estão marcados no mês, se houver.
+function genPrefillRequests(){
+  gen.requests = {};
+  const prefix = monthKey(gen.year, gen.month) + '-';
+  const req = state.requestedOffDays || {};
+  state.people.forEach(p => {
+    const days = (req[p.id] || []).filter(ds => ds.startsWith(prefix)).map(ds => parseInt(ds.slice(8), 10));
+    if(days.length) gen.requests[p.id] = new Set(days);
+  });
+}
+
+// Quem teve FA no mês anterior: vem da escala que o próprio gerador gravou
+// naquele mês (state.faMonths). Se não houver registro, começa vazio e o usuário marca.
+function genPrevMonthKey(){
+  const d = new Date(gen.year, gen.month - 1, 1);
+  return monthKey(d.getFullYear(), d.getMonth());
+}
+function genPrevMonthName(){
+  const d = new Date(gen.year, gen.month - 1, 1);
+  return MONTHS[d.getMonth()];
+}
+function genPrefillFa(){
+  const saved = (state.faMonths || {})[genPrevMonthKey()];
+  gen.faRecorded = Array.isArray(saved);
+  gen.faLast = new Set(gen.faRecorded ? saved : []);
+}
+// Quem tem folga fixa no sábado (e não no domingo) tem FA todo mês.
+function genFixedDowsByPid(){
+  const map = {};
+  gen.fixed.forEach(row => {
+    if(!map[row.pid]) map[row.pid] = new Set();
+    row.dows.forEach(w => map[row.pid].add(w));
+  });
+  return map;
+}
+function genFaMode(pid, fixedDows){
+  if(fixedDows && fixedDows.has(0)) return 'never';
+  if(fixedDows && fixedDows.has(6)) return 'must';
+  return gen.faLast.has(pid) ? 'never' : 'must';
+}
+
+// ---- montagem da config para o motor ----
+// Se a pessoa não tem NENHUMA folga registrada nas semanas anteriores, os dados do
+// mês passado provavelmente não foram preenchidos — então não conta como "vem
+// trabalhando sem parar" (isso forçaria folga geral no dia 1).
+function genHasRecentOffs(personId, year, month, days){
+  const first = iso(year, month, 1);
+  const start = addDaysToIso(first, -days);
+  return (state.offDays[personId] || []).some(ds => ds >= start && ds < first);
+}
+function genCarryWork(personId, year, month){
+  if(!genHasRecentOffs(personId, year, month, 35)) return 0;
+  let n = 0;
+  let cur = addDaysToIso(iso(year, month, 1), -1);
+  while(n < 12 && isWorkingDay(personId, cur)){ n++; cur = addDaysToIso(cur, -1); }
+  return n;
+}
+function genCarrySundays(personId, year, month){
+  if(!genHasRecentOffs(personId, year, month, 63)) return 0;
+  const d = new Date(year, month, 1);
+  d.setDate(d.getDate() - 1);
+  while(d.getDay() !== 0) d.setDate(d.getDate() - 1);
+  let n = 0;
+  while(n < 12){
+    if(!isWorkingDay(personId, iso(d.getFullYear(), d.getMonth(), d.getDate()))) break;
+    n++;
+    d.setDate(d.getDate() - 7);
+  }
+  return n;
+}
+function genActiveGroups(selectedIds){
+  const groups = [];
+  (state.coveragePairs || []).forEach(pair => {
+    if(gen.savedOff[pair.id]) return;
+    const members = pairMembers(pair).filter(id => selectedIds.includes(id));
+    if(members.length >= 2) groups.push(members);
+  });
+  gen.extraGroups.forEach(g => {
+    const members = g.filter(id => selectedIds.includes(id));
+    if(members.length >= 2) groups.push(members);
+  });
+  return groups;
+}
+function genBuildConfig(){
+  const { D, dows } = genDayInfo(gen.year, gen.month);
+  const people = genSelectedPeople();
+  const ids = people.map(p => p.id);
+  const fixedByPid = {};
+  gen.fixed.forEach(row => {
+    if(!ids.includes(row.pid)) return;
+    if(!fixedByPid[row.pid]) fixedByPid[row.pid] = new Set();
+    row.dows.forEach(w => fixedByPid[row.pid].add(w));
+  });
+  const cfgPeople = people.map(p => {
+    const fixedDows = fixedByPid[p.id] || new Set();
+    const forced = new Array(D).fill(false);
+    const fixedMask = new Array(D).fill(false);
+    const reqMask = new Array(D).fill(false);
+    for(let d = 0; d < D; d++){
+      if(fixedDows.has(dows[d])){ forced[d] = true; fixedMask[d] = true; }
+    }
+    (gen.requests[p.id] ? [...gen.requests[p.id]] : []).forEach(day => {
+      if(day >= 1 && day <= D){ forced[day - 1] = true; if(!fixedMask[day - 1]) reqMask[day - 1] = true; }
+    });
+    let forcedCount = 0, forcedSundays = 0;
+    for(let d = 0; d < D; d++) if(forced[d]){ forcedCount++; if(dows[d] === 0) forcedSundays++; }
+    return {
+      id: p.id, name: p.name, forced, fixedMask, reqMask, forcedCount, forcedSundays,
+      sunRule: !fixedDows.has(0),
+      faMode: genFaMode(p.id, fixedDows),
+      carryWork: genCarryWork(p.id, gen.year, gen.month),
+      carrySun: genCarrySundays(p.id, gen.year, gen.month),
+      K: Math.max(gen.rules.offs, forcedCount)
+    };
+  });
+  const groups = genActiveGroups(ids).map(g => g.map(id => ids.indexOf(id)));
+  return {
+    year: gen.year, month: gen.month, D, dows, people: cfgPeople, groups,
+    W: gen.rules.maxWork, SW: gen.rules.maxSun, M: genCurrentM(),
+    rules: { offs: gen.rules.offs }, maxOffs: MAX_OFF_DAYS_PER_MONTH
+  };
+}
+
+// ---- renderização ----
+function genRender(animate){
+  if(!gen) return;
+  const st = GEN_STEPS[gen.step];
+  document.getElementById('genModal').classList.toggle('wide', gen.step === GEN_STEP_RESULT);
+  document.getElementById('genEyebrow').textContent = `Passo ${gen.step + 1} de ${GEN_STEPS.length} · ${st.eyebrow}`;
+  document.getElementById('genTitle').textContent = st.title;
+  document.querySelectorAll('#genProgress span').forEach((el, i) => el.classList.toggle('done', i <= gen.step));
+  const builders = [genStep0, genStep1, genStep2, genStepFa, genStep3, genStep4, genStep5];
+  const body = document.getElementById('genBody');
+  const cls = animate ? (gen.dir > 0 ? 'anim-fwd' : 'anim-back') : '';
+  body.innerHTML = `<div class="gen-step ${cls}">${builders[gen.step]()}</div>`;
+  if(animate) body.scrollTop = 0;
+  genRenderFooter();
+}
+
+function genRenderFooter(){
+  const foot = document.getElementById('genFoot');
+  const s = gen.step;
+  let h = '';
+  if(s === 0){
+    h = `<button class="btn-secondary" data-nav="close">Cancelar</button>
+         <button class="btn-primary" data-nav="next" ${gen.selected.size ? '' : 'disabled'}>Continuar</button>`;
+  }else if(s < GEN_STEP_RULES){
+    h = `<button class="btn-secondary" data-nav="back">Voltar</button>
+         <button class="btn-primary" data-nav="next">Continuar</button>`;
+  }else if(s === GEN_STEP_RULES){
+    h = `<button class="btn-secondary" data-nav="back">Voltar</button>
+         <button class="btn-primary" data-nav="generate">✨ Gerar escala</button>`;
+  }else{
+    h = `<button class="btn-secondary" data-nav="adjust">‹ Ajustar</button>
+         <button class="btn-secondary" data-nav="again" ${gen.result ? '' : 'disabled'}>🔀 Outra</button>
+         <button class="btn-primary" data-nav="apply" ${gen.result ? '' : 'disabled'}>✓ Aplicar</button>`;
+  }
+  foot.innerHTML = h;
+}
+
+// Passo 1 — mês e pessoas
+function genStep0(){
+  const monthOpts = MONTHS.map((m, i) => `<option value="${i}" ${i === gen.month ? 'selected' : ''}>${capFirst(m)}</option>`).join('');
+  let html = `<p class="gen-lead">Escolha o mês e <b>quem vai entrar</b> na escala automática. Toque no nome para marcar ou desmarcar.</p>
+    <div class="gen-month-row">
+      <select class="gen-select" id="genMonth">${monthOpts}</select>
+      <input type="number" class="gen-year-input" id="genYear" value="${gen.year}">
+    </div>`;
+  const groups = {};
+  sortPeople(state.people).forEach(p => { const g = genGroupOf(p); (groups[g] = groups[g] || []).push(p); });
+  [...GEN_GROUP_ORDER, 'none'].forEach(gid => {
+    const list = groups[gid];
+    if(!list) return;
+    const f = fnById(gid);
+    const nSel = list.filter(p => gen.selected.has(p.id)).length;
+    html += `<div class="gen-group" data-group="${gid}">
+      <div class="gen-group-head">
+        <span class="dot" style="background:${f ? f.hex : '#64748B'}"></span>
+        <span class="gname">${f ? f.name : 'Sem função'}</span>
+        <span class="gcount">${nSel}/${list.length}</span>
+        <button class="gen-link-btn" data-act="groupAll" data-gid="${gid}">${nSel === list.length ? 'Nenhum' : 'Todos'}</button>
+      </div>
+      <div class="gen-pills">${list.map(p => `<button class="gen-pill ${gen.selected.has(p.id) ? 'on' : ''}" data-act="togglePerson" data-pid="${p.id}"><span class="gen-check">✓</span>${genEsc(p.name)}</button>`).join('')}</div>
+    </div>`;
+  });
+  html += `<div class="gen-summary" id="genSum0">${genSum0Text()}</div>`;
+  return html;
+}
+function genSum0Text(){
+  const n = gen.selected.size;
+  return n ? `<b>${n}</b> pessoa${n > 1 ? 's' : ''} na escala de ${genMonthName()} de ${gen.year}` : 'Selecione pelo menos uma pessoa para continuar.';
+}
+function genRefreshStep0(){
+  const groups = {};
+  state.people.forEach(p => { const g = genGroupOf(p); (groups[g] = groups[g] || []).push(p); });
+  document.querySelectorAll('#genBody .gen-group').forEach(card => {
+    const list = groups[card.dataset.group] || [];
+    const nSel = list.filter(p => gen.selected.has(p.id)).length;
+    card.querySelector('.gcount').textContent = `${nSel}/${list.length}`;
+    card.querySelector('.gen-link-btn').textContent = nSel === list.length ? 'Nenhum' : 'Todos';
+  });
+  const sum = document.getElementById('genSum0');
+  if(sum) sum.innerHTML = genSum0Text();
+  const next = document.querySelector('#genFoot [data-nav="next"]');
+  if(next) next.disabled = gen.selected.size === 0;
+}
+
+// Passo 2 — pedidos de dia específico
+function genCalHtml(pid, set, D, dows){
+  const firstDow = dows[0];
+  let h = GEN_DOW_LETTERS.map(l => `<div class="dow">${l}</div>`).join('');
+  for(let i = 0; i < firstDow; i++) h += `<div class="blank"></div>`;
+  for(let d = 1; d <= D; d++){
+    const dw = dows[d - 1];
+    h += `<button class="${dw === 0 || dw === 6 ? 'wk' : ''} ${set.has(d) ? 'on' : ''}" data-act="toggleReqDay" data-pid="${pid}" data-day="${d}">${d}</button>`;
+  }
+  return `<div class="gen-cal">${h}</div>`;
+}
+function genStep1(){
+  const people = genSelectedPeople();
+  const { D, dows } = genDayInfo(gen.year, gen.month);
+  let html = `<p class="gen-lead">Alguém pediu um <b>dia específico</b> de folga em ${genMonthName()}? Toque no nome e marque os dias. Quem não pediu nada fica em branco.</p>`;
+  people.forEach(p => {
+    const set = gen.requests[p.id] || new Set();
+    const open = gen.openReq === p.id;
+    html += `<div class="gen-acc ${open ? 'open' : ''}" data-pid="${p.id}">
+      <div class="gen-acc-head" data-act="toggleAcc" data-pid="${p.id}">
+        <span class="aname">${genEsc(p.name)}</span>
+        <span class="gen-badge ${set.size ? 'has' : ''}">${set.size ? set.size + ' dia' + (set.size > 1 ? 's' : '') : 'nenhum'}</span>
+        <span class="gen-chev">▼</span>
+      </div>
+      <div class="gen-acc-body"><div class="gen-acc-inner">${genCalHtml(p.id, set, D, dows)}</div></div>
+    </div>`;
+  });
+  return html;
+}
+
+// Passo 3 — folgas fixas semanais
+function genNormalizeFixed(){
+  const ids = genSelectedPeople().map(p => p.id);
+  gen.fixed.forEach(row => { if(!ids.includes(row.pid)) row.pid = ids[0]; });
+}
+function genStep2(){
+  const people = genSelectedPeople();
+  let html = `<p class="gen-lead">Existe alguém com <b>folga fixa</b> toda semana (por exemplo, todo sábado)? Adicione abaixo. Isso vale só para esta escala, ninguém fica marcado para sempre.</p>`;
+  if(!gen.fixed.length){
+    html += `<p class="gen-lead" style="margin-top:-6px;">Se ninguém tem, é só continuar.</p>`;
+  }
+  gen.fixed.forEach(row => {
+    html += `<div class="gen-row" data-rid="${row.id}">
+      <div class="gen-row-top">
+        <select class="gen-select" data-act="fixedPerson" data-rid="${row.id}">
+          ${people.map(p => `<option value="${p.id}" ${p.id === row.pid ? 'selected' : ''}>${genEsc(p.name)}</option>`).join('')}
+        </select>
+        <button class="gen-x" data-act="fixedRemove" data-rid="${row.id}" title="Remover">✕</button>
+      </div>
+      <div class="gen-dows">
+        ${DOW.map((n, i) => `<button class="gen-pill sm ${row.dows.includes(i) ? 'on' : ''}" data-act="fixedDow" data-rid="${row.id}" data-dow="${i}"><span class="gen-check">✓</span>${capFirst(n)}</button>`).join('')}
+      </div>
+    </div>`;
+  });
+  html += `<button class="gen-add-btn" data-act="fixedAdd">+ Adicionar folga fixa</button>`;
+  return html;
+}
+
+// Passo 4 — quem teve FA no mês passado (marcação manual)
+function genFaPickable(){
+  const fx = genFixedDowsByPid();
+  return genSelectedPeople().filter(p => !(fx[p.id] && (fx[p.id].has(6) || fx[p.id].has(0))));
+}
+function genFaSummaryText(){
+  const pickable = genFaPickable();
+  const sem = pickable.filter(p => gen.faLast.has(p.id)).length;
+  const fx = genFixedDowsByPid();
+  const fixedSat = genSelectedPeople().filter(p => fx[p.id] && fx[p.id].has(6) && !fx[p.id].has(0)).length;
+  const com = (pickable.length - sem) + fixedSat;
+  return `<b>${com}</b> com FA em ${genMonthName()} · <b>${sem}</b> sem FA (já tiveram)`;
+}
+function genStepFa(){
+  const fx = genFixedDowsByPid();
+  const people = genSelectedPeople();
+  const pickable = genFaPickable();
+  const fixedSat = people.filter(p => fx[p.id] && fx[p.id].has(6) && !fx[p.id].has(0));
+  let html = `<p class="gen-lead">A <b>FA</b> (folga agrupada) são 2 folgas seguidas: sábado e domingo, ou domingo e segunda. Cada pessoa tem uma por mês, alternando. Marque <b>quem teve FA em ${genPrevMonthName()}</b>: essas pessoas ficam sem FA em ${genMonthName()}.</p>`;
+  html += `<p class="mini-hint" style="margin-top:-6px;">${gen.faRecorded ? `Já marcado a partir da escala gerada em ${genPrevMonthName()}. Confira e corrija se precisar.` : `Não tenho registro de ${genPrevMonthName()}. Marque manualmente.`}</p>`;
+  const groups = {};
+  pickable.forEach(p => { const g = genGroupOf(p); (groups[g] = groups[g] || []).push(p); });
+  [...GEN_GROUP_ORDER, 'none'].forEach(gid => {
+    const list = groups[gid];
+    if(!list) return;
+    const f = fnById(gid);
+    html += `<div class="gen-group">
+      <div class="gen-group-head"><span class="dot" style="background:${f ? f.hex : '#64748B'}"></span><span class="gname">${f ? f.name : 'Sem função'}</span></div>
+      <div class="gen-pills">${list.map(p => `<button class="gen-pill ${gen.faLast.has(p.id) ? 'on' : ''}" data-act="faToggle" data-pid="${p.id}"><span class="gen-check">✓</span>${genEsc(p.name)}</button>`).join('')}</div>
+    </div>`;
+  });
+  if(fixedSat.length){
+    html += `<div class="gen-warn-note" style="color:var(--text-dim); background:var(--surface-2); border-color:var(--border);">Folga fixa no sábado, com FA todo mês: <b style="color:var(--text);">${fixedSat.map(p => genEsc(p.name)).join(', ')}</b></div>`;
+  }
+  html += `<div class="gen-summary" id="genSumFa">${genFaSummaryText()}</div>`;
+  return html;
+}
+
+// Passo 5 — restrições de "não folgar junto"
+function genGroupWarn(size){
+  const D = genDayInfo(gen.year, gen.month).D;
+  const total = size * gen.rules.offs;
+  if(total <= D) return '';
+  const extra = total - D;
+  return `<div class="gen-warn-note">⚠ ${size} pessoas com ${gen.rules.offs} folgas cada são ${total} folgas em ${D} dias. Não dá para evitar totalmente: pelo menos ${extra} coincidência${extra > 1 ? 's' : ''}. O gerador vai reduzir ao mínimo.</div>`;
+}
+function genStep3(){
+  const ids = genSelectedPeople().map(p => p.id);
+  const nameOf = id => { const p = state.people.find(x => x.id === id); return p ? p.name : '?'; };
+  const saved = (state.coveragePairs || []).map(pair => ({ pair, members: pairMembers(pair).filter(id => ids.includes(id)) })).filter(x => x.members.length >= 2);
+  let html = `<p class="gen-lead">Marque quem <b>não pode folgar no mesmo dia</b>. Podem ser 2, 3, 4 ou mais pessoas por restrição. O gerador evita esses encontros.</p>`;
+  if(saved.length){
+    html += `<div class="gen-sec-title">Restrições já cadastradas</div>`;
+    saved.forEach(({ pair, members }) => {
+      const on = !gen.savedOff[pair.id];
+      html += `<div class="gen-check-row ${on ? 'on' : 'off'}" data-act="savedToggle" data-id="${pair.id}">
+        <span class="gen-tick">✓</span>
+        <span class="ctext">${members.map(id => genEsc(nameOf(id))).join(' ⇄ ')}</span>
+      </div>${genGroupWarn(members.length)}`;
+    });
+  }
+  if(gen.extraGroups.length){
+    html += `<div class="gen-sec-title">Novas, só para esta escala</div>`;
+    gen.extraGroups.forEach((g, i) => {
+      const members = g.filter(id => ids.includes(id));
+      html += `<div class="gen-check-row on" style="cursor:default;">
+        <span class="gen-tick">✓</span>
+        <span class="ctext">${members.map(id => genEsc(nameOf(id))).join(' ⇄ ')}</span>
+        <button class="gen-x" data-act="extraRemove" data-i="${i}" title="Remover">✕</button>
+      </div>${members.length >= 2 ? genGroupWarn(members.length) : ''}`;
+    });
+  }
+  if(gen.draft){
+    html += `<div class="gen-draft">
+      <div class="gen-sec-title" style="margin-top:0;">Marque 2 ou mais pessoas</div>
+      <div class="gen-pills">${genSelectedPeople().map(p => `<button class="gen-pill ${gen.draft.has(p.id) ? 'on' : ''}" data-act="draftToggle" data-pid="${p.id}"><span class="gen-check">✓</span>${genEsc(p.name)}</button>`).join('')}</div>
+      <div class="gen-draft-actions">
+        <button class="btn-secondary" data-act="draftCancel">Cancelar</button>
+        <button class="btn-primary" id="genDraftAdd" data-act="draftAdd" ${gen.draft.size >= 2 ? '' : 'disabled'}>Adicionar</button>
+      </div>
+    </div>`;
+  }else{
+    html += `<button class="gen-add-btn" data-act="draftStart" style="margin-top:6px;">+ Nova restrição</button>`;
+  }
+  if(!saved.length && !gen.extraGroups.length && !gen.draft){
+    html += `<p class="mini-hint" style="margin-top:12px;">Nenhuma restrição ainda. Se não houver, é só continuar.</p>`;
+  }
+  return html;
+}
+
+// Passo 5 — regras
+function genStep4(){
+  const N = genSelectedPeople().length;
+  const { D } = genDayInfo(gen.year, gen.month);
+  const r = gen.rules;
+  const autoM = genAutoM();
+  const stepper = (key, val) => `<div class="gen-stepper">
+      <button data-act="step" data-key="${key}" data-d="-1">−</button><span class="val">${val}</span><button data-act="step" data-key="${key}" data-d="1">+</button>
+    </div>`;
+  const ids = genSelectedPeople().map(p => p.id);
+  let pedidos = 0;
+  genSelectedPeople().forEach(p => { (gen.requests[p.id] ? [...gen.requests[p.id]] : []).forEach(d => { if(d >= 1 && d <= D) pedidos++; }); });
+  const fixas = gen.fixed.filter(x => ids.includes(x.pid) && x.dows.length).length;
+  const restr = genActiveGroups(ids).length;
+  return `<p class="gen-lead">Confira as regras que o gerador vai seguir. Você pode ajustar os números.</p>
+    <div class="gen-rule">
+      <div class="rtext"><div class="rtitle">Folgas por pessoa</div><div class="rhint">Todos recebem pelo menos essa quantidade, qualquer jornada.</div></div>
+      ${stepper('offs', r.offs)}
+    </div>
+    <div class="gen-rule">
+      <div class="rtext"><div class="rtitle">Máx. dias seguidos trabalhando</div><div class="rhint">Depois disso a folga é obrigatória. O 1º dia da FA conta na sequência; só o 2º dia zera.</div></div>
+      ${stepper('maxWork', r.maxWork)}
+    </div>
+    <div class="gen-rule">
+      <div class="rtext"><div class="rtitle">Máx. domingos seguidos sem folga</div><div class="rhint">No domingo seguinte a folga é obrigatória, mesmo virando o mês.</div></div>
+      ${stepper('maxSun', r.maxSun)}
+    </div>
+    <div class="gen-rule">
+      <div class="rtext"><div class="rtitle">Máx. pessoas de folga no mesmo dia</div><div class="rhint">${r.maxPerDay == null ? `Automático (média de ${(N * r.offs / D).toFixed(1).replace('.', ',')} por dia).` : `Manual. <button class="gen-link-btn" data-act="autoM" style="padding:0;">usar automático (${autoM})</button>`}</div></div>
+      ${stepper('maxPerDay', genCurrentM())}
+    </div>
+    <div class="gen-rule fixed">
+      <div class="rtext"><div class="rtitle">1 domingo de folga por mês</div><div class="rhint">Quem tem folga fixa no domingo fica fora dessa regra. A FA de domingo e segunda vale como o domingo.</div></div>
+      <span class="lock">🔒</span>
+    </div>
+    <div class="gen-rule fixed">
+      <div class="rtext"><div class="rtitle">1 FA por mês, alternando</div><div class="rhint">Sábado+domingo ou domingo+segunda. Fora da FA, ninguém folga 2 dias seguidos. Os 2 dias da FA contam nas folgas.</div></div>
+      <span class="lock">🔒</span>
+    </div>
+    <div class="gen-summary"><b>${N}</b> pessoa${N > 1 ? 's' : ''} · <b>${N * r.offs}</b> folgas em ${genMonthName()} · ${pedidos} pedido${pedidos === 1 ? '' : 's'} de dia · ${fixas} folga${fixas === 1 ? '' : 's'} fixa${fixas === 1 ? '' : 's'} · ${restr} restrição${restr === 1 ? '' : 'ões'}</div>`;
+}
+
+// Passo 6 — resultado
+function genStep5(){
+  if(!gen.result){
+    return `<div class="gen-loading"><div class="gen-spinner"></div><p>Montando a escala…</p><div class="sub">Equilibrando folgas e respeitando as regras</div></div>`;
+  }
+  const { cfg, sol } = gen.result;
+  const { D, dows } = cfg;
+  const issues = sol.issues;
+  const totalOffs = sol.offs.reduce((acc, a) => acc + a.filter(Boolean).length, 0);
+  const faInfo = cfg.people.map((P, i) => genFaFirstDays(sol.offs[i], dows));
+  const withFa = faInfo.filter(l => l.length > 0).length;
+  const maxLoad = Math.max(...sol.load);
+  let verdict;
+  if(!issues.length){
+    verdict = `<div class="gen-verdict ok"><span class="vicon">✅</span><div><div class="vtitle">Todas as regras foram respeitadas</div>
+      <div class="vlist" style="color:var(--text-dim);">${cfg.people.length} pessoas · ${totalOffs} folgas · ${withFa} com FA · no máximo ${maxLoad} de folga no mesmo dia</div></div></div>`;
+  }else{
+    const shown = issues.slice(0, 6).map(t => `<div>${genEsc(t)}</div>`).join('');
+    const more = issues.length > 6 ? `<div>e mais ${issues.length - 6} ponto(s)</div>` : '';
+    verdict = `<div class="gen-verdict warn"><span class="vicon">⚠️</span><div><div class="vtitle">Gerada com ${issues.length} ponto${issues.length > 1 ? 's' : ''} de atenção</div>
+      <div class="vlist">${shown}${more}</div><div class="vlist" style="margin-top:8px;">Toque em “Outra” para tentar uma variação.</div></div></div>`;
+  }
+  let head = `<th class="nm">Nome</th>`;
+  for(let d = 1; d <= D; d++){
+    head += `<th class="dh ${dows[d-1] === 0 ? 'sun' : ''}"><span class="dn">${d}</span><span class="dw">${DOW[dows[d-1]].charAt(0)}</span></th>`;
+  }
+  head += `<th class="tot">Fol.</th>`;
+  let rows = '';
+  cfg.people.forEach((P, i) => {
+    const a = sol.offs[i];
+    const count = a.filter(Boolean).length;
+    let cells = '';
+    for(let d = 0; d < D; d++){
+      const cls = P.fixedMask[d] ? 'fix' : (P.reqMask[d] ? 'req' : '');
+      const delay = Math.min(i * 24 + d * 7, 600);
+      const label = faInfo[i].includes(d) ? 'FA' : 'F';
+      cells += `<td class="c ${dows[d] === 0 ? 'sun' : ''}">${a[d] ? `<span class="gen-cell ${cls}" style="animation-delay:${delay}ms">${label}</span>` : ''}</td>`;
+    }
+    rows += `<tr><td class="nm" title="${genEsc(P.name)}">${genEsc(P.name)}</td>${cells}<td class="tot ${count < cfg.rules.offs ? 'bad' : ''}">${count}</td></tr>`;
+  });
+  let foot = `<tr class="foot"><td class="nm">Folgam</td>`;
+  for(let d = 0; d < D; d++) foot += `<td class="${sol.load[d] > cfg.M ? 'over' : ''}">${sol.load[d]}</td>`;
+  foot += `<td></td></tr>`;
+  return `${verdict}
+    <div class="gen-table-wrap"><table class="gen-table"><thead><tr>${head}</tr></thead><tbody>${rows}${foot}</tbody></table></div>
+    <div class="gen-legend">
+      <span><i style="background:var(--c-folga)"></i>Folga (FA = 1º dia da folga agrupada)</span>
+      <span><i style="background:var(--c-desejada)"></i>Dia pedido</span>
+      <span><i style="background:var(--accent)"></i>Folga fixa</span>
+      <span><i style="background:rgba(255,107,53,0.25)"></i>Domingo</span>
+    </div>
+    <p class="mini-hint" style="margin-top:12px;">Nada foi alterado ainda. Toque em “Aplicar” para gravar essas folgas na escala de ${genMonthName()}.</p>`;
+}
+
+// ---- gerar / aplicar ----
+async function genGenerate(animate){
+  if(!gen) return;
+  const token = ++gen.runToken;
+  gen.result = null;
+  genRender(!!animate);
+  await genTick();
+  await new Promise(r => setTimeout(r, 450)); // deixa a animação de carregamento respirar
+  if(!gen || token !== gen.runToken) return;
+  let result;
+  try{
+    const cfg = genBuildConfig();
+    const sol = await genRun(cfg, (Date.now() ^ Math.floor(Math.random() * 1e9)) >>> 0);
+    result = { cfg, sol };
+  }catch(err){
+    console.error('Falha ao gerar escala:', err);
+    if(gen){ showToast('Não consegui gerar a escala. Confira as opções e tente de novo.'); genGo(GEN_STEP_RULES, -1); }
+    return;
+  }
+  if(!gen || token !== gen.runToken) return;
+  gen.result = result;
+  genRender(false);
+  document.getElementById('genBody').scrollTop = 0;
+}
+
+function genApply(){
+  if(!gen || !gen.result) return;
+  const { cfg, sol } = gen.result;
+  const { year, month } = cfg;
+  const key = monthKey(year, month);
+  const prefix = key + '-';
+  const hasExisting = cfg.people.some(P => (state.offDays[P.id] || []).some(ds => ds.startsWith(prefix)));
+  if(hasExisting && !confirm(`Isso vai substituir as folgas atuais das pessoas selecionadas em ${MONTHS[month]} de ${year}. Continuar?`)) return;
+
+  if(!state.publishedMonths) state.publishedMonths = [];
+  if(!state.publishedMonths.includes(key)) state.publishedMonths.push(key);
+  if(!state.monthRosters) state.monthRosters = {};
+  if(!state.monthRosters[key]) state.monthRosters[key] = [];
+  if(!state.requestedOffDays) state.requestedOffDays = {};
+  if(!state.faMonths) state.faMonths = {};
+  const selectedIds = cfg.people.map(P => P.id);
+  const faIds = cfg.people.filter((P, i) => genFaFirstDays(sol.offs[i], cfg.dows).length > 0).map(P => P.id);
+  state.faMonths[key] = (state.faMonths[key] || []).filter(id => !selectedIds.includes(id)).concat(faIds);
+
+  cfg.people.forEach((P, i) => {
+    const keepOther = (state.offDays[P.id] || []).filter(ds => !ds.startsWith(prefix));
+    const newDays = [];
+    sol.offs[i].forEach((isOffDay, d) => { if(isOffDay) newDays.push(iso(year, month, d + 1)); });
+    state.offDays[P.id] = keepOther.concat(newDays);
+
+    const reqKeep = (state.requestedOffDays[P.id] || []).filter(ds => !ds.startsWith(prefix));
+    const reqNew = (gen.requests[P.id] ? [...gen.requests[P.id]] : [])
+      .filter(day => day >= 1 && day <= cfg.D && sol.offs[i][day - 1])
+      .map(day => iso(year, month, day));
+    const reqAll = reqKeep.concat(reqNew);
+    if(reqAll.length) state.requestedOffDays[P.id] = reqAll; else delete state.requestedOffDays[P.id];
+
+    if(!state.monthRosters[key].includes(P.id)) state.monthRosters[key].push(P.id);
+  });
+
+  saveState();
+  calYear = year; calMonth = month;
+  saveUiState();
+  render();
+  requestCloseOverlay('genOverlay');
+  showToast('Escala gerada e aplicada ✓');
+}
+
+function genGo(step, dir){
+  if(!gen) return;
+  gen.dir = dir;
+  gen.step = step;
+  gen.runToken++;
+  if(step >= 2) genNormalizeFixed();
+  if(step === GEN_STEP_RESULT){ genGenerate(true); return; }
+  genRender(true);
+}
+
+// ---- eventos (delegação: ligados uma vez só) ----
+(function genWireEvents(){
+  const body = document.getElementById('genBody');
+  const foot = document.getElementById('genFoot');
+
+  document.getElementById('genCloseBtn').addEventListener('click', ()=>{
+    if(gen && gen.step > 0 && !confirm('Sair do assistente? As escolhas feitas até aqui serão perdidas.')) return;
+    requestCloseOverlay('genOverlay');
+  });
+
+  foot.addEventListener('click', (e)=>{
+    if(!gen) return;
+    const btn = e.target.closest('[data-nav]');
+    if(!btn || btn.disabled) return;
+    switch(btn.dataset.nav){
+      case 'close':    requestCloseOverlay('genOverlay'); break;
+      case 'next':     genGo(gen.step + 1, 1); break;
+      case 'back':     genGo(gen.step - 1, -1); break;
+      case 'generate': genGo(GEN_STEP_RESULT, 1); break;
+      case 'adjust':   genGo(GEN_STEP_RULES, -1); break;
+      case 'again':    genGenerate(false); break;
+      case 'apply':    genApply(); break;
+    }
+  });
+
+  body.addEventListener('change', (e)=>{
+    if(!gen) return;
+    const t = e.target;
+    if(t.id === 'genMonth'){
+      gen.month = parseInt(t.value, 10);
+      genPrefillRequests();
+      genPrefillFa();
+      const sum = document.getElementById('genSum0'); if(sum) sum.innerHTML = genSum0Text();
+    }else if(t.id === 'genYear'){
+      const y = parseInt(t.value, 10);
+      if(!Number.isInteger(y) || y < 2020 || y > 2100){ t.value = gen.year; showToast('Confira o ano.'); return; }
+      gen.year = y;
+      genPrefillRequests();
+      genPrefillFa();
+      const sum = document.getElementById('genSum0'); if(sum) sum.innerHTML = genSum0Text();
+    }else if(t.dataset.act === 'fixedPerson'){
+      const row = gen.fixed.find(r => r.id === t.dataset.rid);
+      if(row) row.pid = t.value;
+    }
+  });
+
+  body.addEventListener('click', (e)=>{
+    if(!gen) return;
+    const el = e.target.closest('[data-act]');
+    if(!el || el.tagName === 'SELECT') return;
+    const act = el.dataset.act;
+
+    if(act === 'togglePerson'){
+      const pid = el.dataset.pid;
+      if(gen.selected.has(pid)) gen.selected.delete(pid); else gen.selected.add(pid);
+      el.classList.toggle('on', gen.selected.has(pid));
+      genRefreshStep0();
+    }
+    else if(act === 'groupAll'){
+      const gid = el.dataset.gid;
+      const list = state.people.filter(p => genGroupOf(p) === gid);
+      const allOn = list.every(p => gen.selected.has(p.id));
+      list.forEach(p => { if(allOn) gen.selected.delete(p.id); else gen.selected.add(p.id); });
+      el.closest('.gen-group').querySelectorAll('.gen-pill').forEach(pill => pill.classList.toggle('on', gen.selected.has(pill.dataset.pid)));
+      genRefreshStep0();
+    }
+    else if(act === 'faToggle'){
+      const pid = el.dataset.pid;
+      if(gen.faLast.has(pid)) gen.faLast.delete(pid); else gen.faLast.add(pid);
+      el.classList.toggle('on', gen.faLast.has(pid));
+      const sum = document.getElementById('genSumFa');
+      if(sum) sum.innerHTML = genFaSummaryText();
+    }
+    else if(act === 'toggleAcc'){
+      const pid = el.dataset.pid;
+      const acc = el.closest('.gen-acc');
+      const wasOpen = acc.classList.contains('open');
+      body.querySelectorAll('.gen-acc.open').forEach(a => a.classList.remove('open'));
+      if(!wasOpen){ acc.classList.add('open'); gen.openReq = pid; } else gen.openReq = null;
+    }
+    else if(act === 'toggleReqDay'){
+      const pid = el.dataset.pid, day = parseInt(el.dataset.day, 10);
+      let set = gen.requests[pid];
+      if(!set) set = gen.requests[pid] = new Set();
+      if(set.has(day)) set.delete(day); else set.add(day);
+      el.classList.toggle('on', set.has(day));
+      if(set.size === 0) delete gen.requests[pid];
+      const badge = el.closest('.gen-acc').querySelector('.gen-badge');
+      badge.textContent = set.size ? `${set.size} dia${set.size > 1 ? 's' : ''}` : 'nenhum';
+      badge.classList.toggle('has', set.size > 0);
+    }
+    else if(act === 'fixedAdd'){
+      const people = genSelectedPeople();
+      const used = gen.fixed.map(r => r.pid);
+      const pick = people.find(p => !used.includes(p.id)) || people[0];
+      gen.fixed.push({ id: genUid(), pid: pick.id, dows: [6] });
+      genRender(false);
+      body.scrollTop = body.scrollHeight;
+    }
+    else if(act === 'fixedRemove'){
+      gen.fixed = gen.fixed.filter(r => r.id !== el.dataset.rid);
+      genRender(false);
+    }
+    else if(act === 'fixedDow'){
+      const row = gen.fixed.find(r => r.id === el.dataset.rid);
+      if(!row) return;
+      const w = parseInt(el.dataset.dow, 10);
+      const idx = row.dows.indexOf(w);
+      if(idx >= 0) row.dows.splice(idx, 1); else row.dows.push(w);
+      el.classList.toggle('on', row.dows.includes(w));
+    }
+    else if(act === 'savedToggle'){
+      const id = el.dataset.id;
+      gen.savedOff[id] = !gen.savedOff[id];
+      el.classList.toggle('on', !gen.savedOff[id]);
+      el.classList.toggle('off', !!gen.savedOff[id]);
+    }
+    else if(act === 'extraRemove'){
+      gen.extraGroups.splice(parseInt(el.dataset.i, 10), 1);
+      genRender(false);
+    }
+    else if(act === 'draftStart'){
+      gen.draft = new Set();
+      genRender(false);
+      body.scrollTop = body.scrollHeight;
+    }
+    else if(act === 'draftToggle'){
+      const pid = el.dataset.pid;
+      if(gen.draft.has(pid)) gen.draft.delete(pid); else gen.draft.add(pid);
+      el.classList.toggle('on', gen.draft.has(pid));
+      const add = document.getElementById('genDraftAdd');
+      if(add) add.disabled = gen.draft.size < 2;
+    }
+    else if(act === 'draftAdd'){
+      if(!gen.draft || gen.draft.size < 2) return;
+      gen.extraGroups.push([...gen.draft]);
+      gen.draft = null;
+      genRender(false);
+    }
+    else if(act === 'draftCancel'){
+      gen.draft = null;
+      genRender(false);
+    }
+    else if(act === 'step'){
+      const key = el.dataset.key, dlt = parseInt(el.dataset.d, 10);
+      const limits = { offs: [5, 9], maxWork: [3, 7], maxSun: [2, 8] };
+      if(key === 'maxPerDay'){
+        const N = Math.max(1, genSelectedPeople().length);
+        gen.rules.maxPerDay = genClamp(genCurrentM() + dlt, 1, N);
+      }else if(limits[key]){
+        gen.rules[key] = genClamp(gen.rules[key] + dlt, limits[key][0], limits[key][1]);
+      }
+      genRender(false);
+    }
+    else if(act === 'autoM'){
+      gen.rules.maxPerDay = null;
+      genRender(false);
+    }
+  });
+
+  document.getElementById('genOpenBtn').addEventListener('click', genOpen);
+})();
 
 // ---------- Init ----------
 restoreUiState();
