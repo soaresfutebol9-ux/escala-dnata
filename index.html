@@ -8,8 +8,8 @@
 <meta name="theme-color" content="#0F1720">
 <meta name="description" content="Escala de equipe de Operações de Pátio">
 <link rel="manifest" href="manifest.json">
-<link rel="icon" href="icons/icon-192.png">
-<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="icon" href="icons/icon-192.png?v=2">
+<link rel="apple-touch-icon" sizes="180x180" href="icons/icon-180.png?v=2">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -4403,6 +4403,14 @@ function buildEscalaPdf(year, month){
     info[p.id] = { offs, absent, faSet, reqSet, total: offs.filter(Boolean).length };
   });
 
+  // Limpeza disponível por dia (quem é da Limpeza e não está de folga nem faltou)
+  const limpezaList = (groups.find(g => g.gid === 'limpeza') || { list: [] }).list;
+  const limpezaAvail = [];
+  for(let d = 0; d < D; d++){
+    limpezaAvail.push(limpezaList.filter(p => !info[p.id].offs[d] && !info[p.id].absent[d]));
+  }
+  const hasLimp = limpezaList.length > 0;
+
   const W = 841.89, H = 595.28, M = 24;
   const hasReg = roster.some(p => (p.registration || '').trim());
   const matrW = hasReg ? 40 : 0, nameW = 132, totW = 24;
@@ -4413,8 +4421,9 @@ function buildEscalaPdf(year, month){
   // altura das linhas: reduz um pouco para caber numa página só (o importador lê 1 página)
   const nPeople = roster.length, nBands = 0; // sem faixas de função no PDF
   const titleBlock = 46, colHeadH = 26, footRowH = 15, legendH = 24;
+  const footH = footRowH * (hasLimp ? 2 : 1);
   const tableTop1 = M + titleBlock;
-  const avail1 = H - M - legendH - footRowH - (tableTop1 + colHeadH);
+  const avail1 = H - M - legendH - footH - (tableTop1 + colHeadH);
   const nominal = nPeople * 16 + nBands * 13;
   let f = 1;
   if(nominal > avail1) f = Math.max(0.78, avail1 / nominal);
@@ -4471,7 +4480,6 @@ function buildEscalaPdf(year, month){
         fill = isFa ? '#FF6B35' : (inf.reqSet.has(d) ? '#38BDF8' : '#CBD5E1');
         label = isFa ? 'FA' : 'F';
       }
-      else if(inf.absent[d]){ fill = '#FCA5A5'; label = 'FT'; lcolor = '#7F1D1D'; }
       else if(dows[d] === 0 || dows[d] === 6) fill = '#FFF4EC';
       doc.rect(x, y, dayW, pRow, fill, '#D1D5DB', 0.3);
       if(label) doc.text(x + (dayW - pdfTextWidth(label, 7 * fs, true)) / 2, baseline, label, 7 * fs, true, lcolor);
@@ -4491,11 +4499,38 @@ function buildEscalaPdf(year, month){
       doc.textCenter(dx0 + d * dayW + dayW / 2, y + 10.5, String(n), 7.5, true, '#111827');
     }
     doc.textCenter(dx0 + D * dayW + totW / 2, y + 10.5, String(sum), 7.5, true, '#111827');
+    if(hasLimp){
+      const y2 = y + footRowH;
+      doc.rect(M, y2, tableW, footRowH, '#CCFBF1');
+      doc.text(M + 3, y2 + 10.5, 'Limpeza disponível', 7.5, true, '#115E59');
+      for(let d = 0; d < D; d++){
+        doc.textCenter(dx0 + d * dayW + dayW / 2, y2 + 10.5, String(limpezaAvail[d].length), 7.5, true, '#115E59');
+      }
+    }
+  }
+  // Página extra: quem da Limpeza está disponível em cada dia
+  function drawLimpezaPage(){
+    doc.addPage();
+    doc.text(M, M + 16, 'Limpeza disponível por dia', 16, true, '#111827');
+    doc.text(M, M + 30, `${capFirst(MONTHS[month])} de ${year}`, 9, false, '#6B7280');
+    const rowH = Math.min(15, (H - M - 4 - (M + 42)) / D);
+    const dayColW = 48, cntW = 40;
+    let yy = M + 42;
+    for(let d = 0; d < D; d++){
+      const weekend = dows[d] === 0 || dows[d] === 6;
+      doc.rect(M, yy, W - 2 * M, rowH, weekend ? '#FFF4EC' : (d % 2 ? '#F9FAFB' : null), '#E5E7EB', 0.3);
+      const base = yy + rowH / 2 + 2.6;
+      doc.text(M + 4, base, `${d + 1}  ${DOW[dows[d]].charAt(0).toUpperCase()}`, 8, true, '#111827');
+      doc.textCenter(M + dayColW + cntW / 2, base, String(limpezaAvail[d].length), 8, true, '#115E59');
+      const names = limpezaAvail[d].map(p => p.name).join(', ') || '—';
+      doc.text(M + dayColW + cntW + 6, base, pdfFit(names, W - 2 * M - dayColW - cntW - 10, 8, false), 8, false, '#111827');
+      yy += rowH;
+    }
   }
   function drawLegend(){
     let x = M;
     const y = H - M - 4;
-    const items = [['#CBD5E1', 'F  Folga'], ['#FF6B35', 'FA  Folga agrupada'], ['#38BDF8', 'Dia pedido'], ['#FCA5A5', 'FT  Falta'], ['#FFF4EC', 'Fim de semana']];
+    const items = [['#CBD5E1', 'F  Folga'], ['#FF6B35', 'FA  Folga agrupada'], ['#38BDF8', 'Dia pedido'], ['#FFF4EC', 'Fim de semana']];
     items.forEach(([c, label]) => {
       doc.rect(x, y - 7, 9, 9, c, '#9CA3AF', 0.4);
       doc.text(x + 13, y, label, 7.5, false, '#374151');
@@ -4514,7 +4549,7 @@ function buildEscalaPdf(year, month){
     drawColHeader(y);
     y += colHeadH;
   }
-  const limit = H - M - legendH - footRowH;
+  const limit = H - M - legendH - footH;
   newPage();
   groups.forEach(g => {
     g.list.forEach(p => {
@@ -4525,6 +4560,7 @@ function buildEscalaPdf(year, month){
   });
   drawFootRow(y);
   drawLegend();
+  if(hasLimp) drawLimpezaPage();
   doc.text(W - M - pdfTextWidth('Folgas e faltas conforme a escala do app', 7.5, false), H - M - 4, 'Folgas e faltas conforme a escala do app', 7.5, false, '#9CA3AF');
 
   const fname = `escala-${normalizeText(MONTHS[month])}-${year}.pdf`;
