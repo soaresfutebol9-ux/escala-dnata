@@ -1144,10 +1144,10 @@
   .gen-table th.dh{ font-weight: 600; color: var(--text-dim); padding: 6px 0; min-width: 26px; background: var(--surface-2); }
   .gen-table th.dh .dn{ display: block; font-family: 'Space Grotesk', sans-serif; font-size: 12px; color: var(--text); }
   .gen-table th.dh .dw{ display: block; font-size: 9.5px; text-transform: uppercase; }
-  .gen-table th.dh.sun{ background: rgba(255,107,53,0.14); }
+  .gen-table th.dh.wknd{ background: rgba(255,107,53,0.14); }
   .gen-table th.nm{ background: var(--surface-2); }
   .gen-table td.c{ height: 30px; min-width: 26px; }
-  .gen-table td.c.sun{ background: rgba(255,107,53,0.06); }
+  .gen-table td.c.wknd{ background: rgba(255,107,53,0.06); }
   .gen-table td.tot{ min-width: 34px; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 12px; padding: 0 6px; }
   .gen-table th.tot{ min-width: 34px; background: var(--surface-2); font-size: 10px; color: var(--text-dim); padding: 6px 4px; }
   .gen-table td.tot.bad{ color: var(--c-falta); }
@@ -1158,7 +1158,7 @@
     animation: genCellIn 0.35s ease backwards;
   }
   .gen-cell.req{ background: var(--c-desejada); color: #0F1720; }
-  .gen-cell.fix{ background: var(--accent); color: #0F1720; }
+  .gen-cell.fa{ background: var(--accent); color: #0F1720; }
   @keyframes genCellIn{ from{ opacity: 0; transform: scale(0.4); } to{ opacity: 1; transform: none; } }
   .gen-table tr.foot td{ background: var(--surface-2); font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 11.5px; height: 26px; color: var(--text-dim); }
   .gen-table tr.foot td.nm{ background: var(--surface-2); font-family: 'Inter', sans-serif; font-size: 11px; }
@@ -3093,8 +3093,9 @@ function genDayInfo(year, month){
 
 // Melhor padrão de folgas para UMA pessoa, dado o custo de folgar em cada dia.
 // Regras duras: meta de folgas, máx. de dias seguidos, domingo, e folga agrupada (FA).
-// FA = 2 folgas seguidas em sáb+dom ou dom+seg. O 1º dia da FA CONTA na sequência
-// de dias trabalhados (não é descanso); só o 2º dia zera a contagem. Fora da FA,
+// FA = 2 folgas seguidas em sáb+dom ou dom+seg. O dia da FA é o SÁBADO (sáb+dom) ou a
+// SEGUNDA (dom+seg). Em sáb+dom, o sábado (FA) já zera a contagem de dias seguidos.
+// Em dom+seg, o domingo ainda conta na sequência e a segunda (FA) zera. Fora da FA,
 // ninguém folga 2 dias seguidos.
 // relax: 0 = todas as regras; 1 = +1 folga; 2 = solta a regra do domingo;
 // 3 = FA deixa de ser obrigatória; 4 = permite folgas coladas fora da FA (com custo);
@@ -3145,9 +3146,10 @@ function genBestPattern(P, cfg, costOff, relax){
         if(v < GEN_INF){ res[0] = costOff[d] + pen + v; res[1] = idx; }
       }
     }
-    // 1º dia da FA (sábado ou domingo), conta na sequência de dias seguidos
-    if(faEnabled && a === 0 && f === 0 && o < K && sunOffOk && (dow === 6 || dow === 0) && d + 1 < D && r < W){
-      const idx = (o+1)*sO + (r+1)*sR + ns*sS + nt*sT + 2*sF + 1;
+    // 1º dia da FA. Sábado (sáb+dom): é o dia da FA e zera a contagem de dias seguidos.
+    // Domingo (dom+seg): ainda conta na sequência; quem zera é a segunda (FA).
+    if(faEnabled && a === 0 && f === 0 && o < K && sunOffOk && (dow === 6 || dow === 0) && d + 1 < D && (dow === 6 || r < W)){
+      const idx = (o+1)*sO + (dow === 6 ? 0 : r+1)*sR + ns*sS + nt*sT + 2*sF + 1;
       const v = V[nxt + idx];
       if(v < GEN_INF){ res[2] = costOff[d] + v; res[3] = idx; }
     }
@@ -3220,6 +3222,10 @@ function genFallbackPattern(P, cfg){
   return off;
 }
 
+// Dia (índice) em que cai o rótulo "FA": sábado, quando a FA é sáb+dom; segunda, quando é dom+seg.
+function genFaLabelDays(a, dows){
+  return genFaFirstDays(a, dows).map(d => dows[d] === 6 ? d : d + 1);
+}
 // Dias que são o 1º dia de uma FA (duas folgas seguidas em sáb+dom ou dom+seg).
 function genFaFirstDays(a, dows){
   const out = [];
@@ -3242,10 +3248,11 @@ function genValidate(cfg, offs){
     const isFaFirst = new Array(D).fill(false);
     faDays.forEach(d => { isFaFirst[d] = true; });
 
-    // dias seguidos: o 1º dia da FA conta na sequência, só o 2º dia zera
+    // dias seguidos: o sábado da FA (sáb+dom) zera; o domingo da FA (dom+seg) ainda conta,
+    // e a segunda (FA) zera
     let run = P.carryWork;
     for(let d = 0; d < D; d++){
-      if(a[d] && !isFaFirst[d]) run = 0;
+      if(a[d] && (!isFaFirst[d] || dows[d] === 6)) run = 0;
       else { run++; if(run > cfg.W){ issues.push(`${P.name}: passa de ${cfg.W} dias seguidos (dia ${d+1})`); break; } }
     }
 
@@ -3920,37 +3927,19 @@ function genStep4(){
   const stepper = (key, val) => `<div class="gen-stepper">
       <button data-act="step" data-key="${key}" data-d="-1">−</button><span class="val">${val}</span><button data-act="step" data-key="${key}" data-d="1">+</button>
     </div>`;
-  const ids = genSelectedPeople().map(p => p.id);
-  let pedidos = 0;
-  genSelectedPeople().forEach(p => { (gen.requests[p.id] ? [...gen.requests[p.id]] : []).forEach(d => { if(d >= 1 && d <= D) pedidos++; }); });
-  const fixas = gen.fixed.filter(x => ids.includes(x.pid) && x.dows.length).length;
-  const restr = genActiveGroups(ids).length;
-  return `${genImpossibleHtml()}<p class="gen-lead">Confira as regras que o gerador vai seguir. Você pode ajustar os números.</p>
+  return `${genImpossibleHtml()}
     <div class="gen-rule">
-      <div class="rtext"><div class="rtitle">Folgas por pessoa</div><div class="rhint">Todos recebem pelo menos essa quantidade, qualquer jornada.</div></div>
+      <div class="rtext"><div class="rtitle">Folgas por pessoa</div></div>
       ${stepper('offs', r.offs)}
     </div>
     <div class="gen-rule">
-      <div class="rtext"><div class="rtitle">Máx. dias seguidos trabalhando</div><div class="rhint">Depois disso a folga é obrigatória. O 1º dia da FA conta na sequência; só o 2º dia zera.</div></div>
+      <div class="rtext"><div class="rtitle">Máx. dias seguidos trabalhando</div></div>
       ${stepper('maxWork', r.maxWork)}
     </div>
     <div class="gen-rule">
-      <div class="rtext"><div class="rtitle">Máx. domingos seguidos sem folga</div><div class="rhint">No domingo seguinte a folga é obrigatória, mesmo virando o mês.</div></div>
-      ${stepper('maxSun', r.maxSun)}
-    </div>
-    <div class="gen-rule">
-      <div class="rtext"><div class="rtitle">Máx. pessoas de folga no mesmo dia</div><div class="rhint">${r.maxPerDay == null ? `Automático (média de ${(N * r.offs / D).toFixed(1).replace('.', ',')} por dia).` : `Manual. <button class="gen-link-btn" data-act="autoM" style="padding:0;">usar automático (${autoM})</button>`}</div></div>
+      <div class="rtext"><div class="rtitle">Máx. pessoas de folga no mesmo dia</div>${r.maxPerDay == null ? '' : `<div class="rhint"><button class="gen-link-btn" data-act="autoM" style="padding:0;">usar automático (${autoM})</button></div>`}</div>
       ${stepper('maxPerDay', genCurrentM())}
-    </div>
-    <div class="gen-rule fixed">
-      <div class="rtext"><div class="rtitle">1 domingo de folga por mês</div><div class="rhint">Quem tem folga fixa no domingo fica fora dessa regra. A FA de domingo e segunda vale como o domingo.</div></div>
-      <span class="lock">🔒</span>
-    </div>
-    <div class="gen-rule fixed">
-      <div class="rtext"><div class="rtitle">1 FA por mês, alternando</div><div class="rhint">Sábado+domingo ou domingo+segunda. Fora da FA, ninguém folga 2 dias seguidos. Os 2 dias da FA contam nas folgas.</div></div>
-      <span class="lock">🔒</span>
-    </div>
-    <div class="gen-summary"><b>${N}</b> pessoa${N > 1 ? 's' : ''} · <b>${N * r.offs}</b> folgas em ${genMonthName()} · ${pedidos} pedido${pedidos === 1 ? '' : 's'} de dia · ${fixas} folga${fixas === 1 ? '' : 's'} fixa${fixas === 1 ? '' : 's'} · ${restr} restrição${restr === 1 ? '' : 'ões'}</div>`;
+    </div>`;
 }
 
 // Passo 6 — resultado
@@ -3963,12 +3952,12 @@ function genStep5(){
   const issues = sol.issues;
   const totalOffs = sol.offs.reduce((acc, a) => acc + a.filter(Boolean).length, 0);
   const faInfo = cfg.people.map((P, i) => genFaFirstDays(sol.offs[i], dows));
+  const faLabel = cfg.people.map((P, i) => genFaLabelDays(sol.offs[i], dows));
   const withFa = faInfo.filter(l => l.length > 0).length;
   const maxLoad = Math.max(...sol.load);
   let verdict;
   if(!issues.length){
-    verdict = `<div class="gen-verdict ok"><span class="vicon">✅</span><div><div class="vtitle">Todas as regras foram respeitadas</div>
-      <div class="vlist" style="color:var(--text-dim);">${cfg.people.length} pessoas · ${totalOffs} folgas · ${withFa} com FA · no máximo ${maxLoad} de folga no mesmo dia</div></div></div>`;
+    verdict = `<div class="gen-verdict ok"><span class="vicon">✅</span><div><div class="vtitle">Todas as regras foram respeitadas</div></div></div>`;
   }else{
     const shown = issues.slice(0, 6).map(t => `<div>${genEsc(t)}</div>`).join('');
     const more = issues.length > 6 ? `<div>e mais ${issues.length - 6} ponto(s)</div>` : '';
@@ -3977,7 +3966,7 @@ function genStep5(){
   }
   let head = `<th class="nm">Nome</th>`;
   for(let d = 1; d <= D; d++){
-    head += `<th class="dh ${dows[d-1] === 0 ? 'sun' : ''}"><span class="dn">${d}</span><span class="dw">${DOW[dows[d-1]].charAt(0)}</span></th>`;
+    head += `<th class="dh ${(dows[d-1] === 0 || dows[d-1] === 6) ? 'wknd' : ''}"><span class="dn">${d}</span><span class="dw">${DOW[dows[d-1]].charAt(0)}</span></th>`;
   }
   head += `<th class="tot">Fol.</th>`;
   let rows = '';
@@ -3986,10 +3975,11 @@ function genStep5(){
     const count = a.filter(Boolean).length;
     let cells = '';
     for(let d = 0; d < D; d++){
-      const cls = P.fixedMask[d] ? 'fix' : (P.reqMask[d] ? 'req' : '');
+      const isFa = faLabel[i].includes(d);
+      const cls = isFa ? 'fa' : (P.reqMask[d] ? 'req' : '');
       const delay = Math.min(i * 24 + d * 7, 600);
-      const label = faInfo[i].includes(d) ? 'FA' : 'F';
-      cells += `<td class="c ${dows[d] === 0 ? 'sun' : ''}">${a[d] ? `<span class="gen-cell ${cls}" style="animation-delay:${delay}ms">${label}</span>` : ''}</td>`;
+      const label = isFa ? 'FA' : 'F';
+      cells += `<td class="c ${(dows[d] === 0 || dows[d] === 6) ? 'wknd' : ''}">${a[d] ? `<span class="gen-cell ${cls}" style="animation-delay:${delay}ms">${label}</span>` : ''}</td>`;
     }
     rows += `<tr><td class="nm" title="${genEsc(P.name)}">${genEsc(P.name)}</td>${cells}<td class="tot ${count < cfg.rules.offs ? 'bad' : ''}">${count}</td></tr>`;
   });
@@ -3999,12 +3989,11 @@ function genStep5(){
   return `${verdict}
     <div class="gen-table-wrap"><table class="gen-table"><thead><tr>${head}</tr></thead><tbody>${rows}${foot}</tbody></table></div>
     <div class="gen-legend">
-      <span><i style="background:var(--c-folga)"></i>Folga (FA = 1º dia da folga agrupada)</span>
+      <span><i style="background:var(--c-folga)"></i>Folga</span>
+      <span><i style="background:var(--accent)"></i>FA (folga agrupada)</span>
       <span><i style="background:var(--c-desejada)"></i>Dia pedido</span>
-      <span><i style="background:var(--accent)"></i>Folga fixa</span>
-      <span><i style="background:rgba(255,107,53,0.25)"></i>Domingo</span>
-    </div>
-    <p class="mini-hint" style="margin-top:12px;">Nada foi alterado ainda. Toque em “Aplicar” para gravar essas folgas na escala de ${genMonthName()}.</p>`;
+      <span><i style="background:rgba(255,107,53,0.25)"></i>Fim de semana</span>
+    </div>`;
 }
 
 // ---- gerar / aplicar ----
@@ -4398,8 +4387,10 @@ function buildEscalaPdf(year, month){
       offs.push(isOff(p.id, ds));
       absent.push(isAbsent(p.id, ds));
     }
-    const faSet = new Set(genFaFirstDays(offs, dows));
-    info[p.id] = { offs, absent, faSet, total: offs.filter(Boolean).length };
+    const faSet = new Set(genFaLabelDays(offs, dows));
+    const reqSet = new Set();
+    for(let d = 1; d <= D; d++) if(isRequestedOff(p.id, iso(year, month, d))) reqSet.add(d - 1);
+    info[p.id] = { offs, absent, faSet, reqSet, total: offs.filter(Boolean).length };
   });
 
   const W = 841.89, H = 595.28, M = 24;
@@ -4445,7 +4436,7 @@ function buildEscalaPdf(year, month){
     doc.text(M + matrW + 3, y + 16, 'Nome', 7.5, true, '#374151');
     for(let d = 0; d < D; d++){
       const x = dx0 + d * dayW;
-      if(dows[d] === 0) doc.rect(x, y, dayW, colHeadH, '#FDDCC5');
+      if(dows[d] === 0 || dows[d] === 6) doc.rect(x, y, dayW, colHeadH, '#FDDCC5');
       doc.textCenter(x + dayW / 2, y + 12, String(d + 1), 8, true, '#111827');
       doc.textCenter(x + dayW / 2, y + 21, DOW[dows[d]].charAt(0).toUpperCase(), 6.5, false, '#6B7280');
     }
@@ -4465,9 +4456,13 @@ function buildEscalaPdf(year, month){
     for(let d = 0; d < D; d++){
       const x = dx0 + d * dayW;
       let fill = null, label = '', lcolor = '#111827';
-      if(inf.offs[d]){ fill = inf.faSet.has(d) ? '#FDBA74' : '#CBD5E1'; label = inf.faSet.has(d) ? 'FA' : 'F'; }
+      if(inf.offs[d]){
+        const isFa = inf.faSet.has(d);
+        fill = isFa ? '#FF6B35' : (inf.reqSet.has(d) ? '#38BDF8' : '#CBD5E1');
+        label = isFa ? 'FA' : 'F';
+      }
       else if(inf.absent[d]){ fill = '#FCA5A5'; label = 'FT'; lcolor = '#7F1D1D'; }
-      else if(dows[d] === 0) fill = '#FFF4EC';
+      else if(dows[d] === 0 || dows[d] === 6) fill = '#FFF4EC';
       doc.rect(x, y, dayW, pRow, fill, '#D1D5DB', 0.3);
       if(label) doc.text(x + (dayW - pdfTextWidth(label, 7 * fs, true)) / 2, baseline, label, 7 * fs, true, lcolor);
     }
@@ -4490,7 +4485,7 @@ function buildEscalaPdf(year, month){
   function drawLegend(){
     let x = M;
     const y = H - M - 4;
-    const items = [['#CBD5E1', 'F  Folga'], ['#FDBA74', 'FA  Folga agrupada (1º dia)'], ['#FCA5A5', 'FT  Falta'], ['#FFF4EC', 'Domingo']];
+    const items = [['#CBD5E1', 'F  Folga'], ['#FF6B35', 'FA  Folga agrupada'], ['#38BDF8', 'Dia pedido'], ['#FCA5A5', 'FT  Falta'], ['#FFF4EC', 'Fim de semana']];
     items.forEach(([c, label]) => {
       doc.rect(x, y - 7, 9, 9, c, '#9CA3AF', 0.4);
       doc.text(x + 13, y, label, 7.5, false, '#374151');
