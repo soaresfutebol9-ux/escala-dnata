@@ -261,29 +261,11 @@
   }
   .cal-day.past-day .daynum{ color: var(--text-faint); }
   .cal-day.past-day .count-badge{ color: var(--text-faint) !important; }
-  .cal-day.past-day .flight-count{ color: var(--text-faint) !important; }
 
   .cal-day .top-row{
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-  }
-
-  .cal-day .flights-row{
-    display: flex;
-    gap: 2px;
-    align-items: center;
-  }
-  .cal-day .flight-pip{
-    width: 5px; height: 5px;
-    border-radius: 50%;
-  }
-  .cal-day .flight-count{
-    font-size: 10px;
-    font-weight: 700;
-    font-family: 'Space Grotesk', sans-serif;
-    color: var(--accent);
-    margin-left: 1px;
   }
 
   .cal-day .daynum{
@@ -561,6 +543,32 @@
     font-size: 13px;
   }
   .icon-btn-sm:hover{ border-color: var(--accent); color: var(--text); }
+
+  .imp-title{
+    display: flex; align-items: center; gap: 8px; margin: 2px 0 10px;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-faint);
+  }
+  .imp-title span{
+    padding: 1px 8px; border-radius: 999px; letter-spacing: 0;
+    color: var(--text-dim); background: var(--surface-2); border: 1px solid var(--border);
+  }
+  .imp-card{ align-items: flex-start; padding: 12px 14px; margin-bottom: 8px; border-radius: 14px; }
+  .imp-card .info{ flex: 1; gap: 8px; }
+  .imp-card .name{ font-size: 14.5px; }
+  .imp-chips{ display: flex; flex-wrap: wrap; gap: 4px; }
+  .imp-chip{
+    min-width: 28px; padding: 2px 8px; text-align: center;
+    font-size: 12px; font-weight: 600; color: var(--text-dim);
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px;
+  }
+  .imp-chip.exists{ opacity: 0.5; }
+  .imp-grid{ display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .imp-day{
+    padding: 7px 0; font-size: 12px; font-weight: 600; cursor: pointer;
+    color: var(--text-dim); background: var(--surface-2);
+    border: 1px solid var(--border); border-radius: 8px;
+  }
+  .imp-day.on{ color: var(--text); background: rgba(100,116,139,0.45); border-color: var(--c-folga); }
 
   .empty-state{
     text-align: center;
@@ -1175,7 +1183,6 @@
 <nav class="tabs">
   <button class="active" data-tab="calendario">Calendário</button>
   <button data-tab="escala">Escala</button>
-  <button data-tab="voos">Voos</button>
   <button data-tab="equipe">Equipe</button>
 </nav>
 
@@ -1213,24 +1220,13 @@
         <button class="icon-btn" id="escalaNextMonth">›</button>
       </div>
     </div>
-    <p class="mini-hint" style="margin-bottom:16px;">Cada mês é independente: inclua quem participa da escala deste mês e marque as folgas de cada um. Isso alimenta o calendário automaticamente.</p>
-    <div class="search-input-wrap">
+    <div class="search-input-wrap" style="margin-top:14px;">
       <span class="search-icon">🔍</span>
       <input type="text" class="search-input" id="escalaSearchInput" placeholder="Buscar por nome ou matrícula...">
     </div>
     <div class="swipe-viewport" id="escalaViewport">
       <div class="team-list" id="escalaList"></div>
     </div>
-  </div>
-
-  <!-- VOOS VIEW -->
-  <div class="view" id="view-voos">
-    <div class="team-head">
-      <h2>Voos do mês</h2>
-      <button class="btn-primary" id="addAirlineBtn">+ Companhia</button>
-    </div>
-    <p class="mini-hint" style="margin-bottom:16px;">Marque os dias que cada companhia opera. Isso aparece automaticamente no calendário principal.</p>
-    <div class="team-list" id="voosList"></div>
   </div>
 
   <!-- EQUIPE VIEW -->
@@ -1337,43 +1333,6 @@
   </div>
 </div>
 
-<!-- Add airline modal -->
-<div class="modal-overlay" id="airlineModalOverlay">
-  <div class="modal">
-    <h3>Adicionar companhia</h3>
-    <div class="field">
-      <label>Selecione a companhia</label>
-      <div class="fn-options" id="airlineOptions"></div>
-    </div>
-    <div class="field" id="customAirlineField" style="display:none;">
-      <label>Nome da companhia</label>
-      <input type="text" id="airlineNameInput" placeholder="Digite o nome">
-    </div>
-    <div class="modal-actions">
-      <button class="btn-secondary" id="cancelAirlineBtn">Cancelar</button>
-      <button class="btn-primary" id="saveAirlineBtn">Salvar</button>
-    </div>
-  </div>
-</div>
-
-<!-- Flight-days editor modal -->
-<div class="modal-overlay" id="flightDaysModalOverlay">
-  <div class="modal">
-    <h3 id="flightDaysModalTitle">Dias de operação</h3>
-    <p class="mini-hint">Toque nos dias que essa companhia tem voo neste mês.</p>
-    <div class="mini-cal-head">
-      <button class="icon-btn-sm" id="flightMiniPrev">‹</button>
-      <span id="flightMiniMonthLabel">—</span>
-      <button class="icon-btn-sm" id="flightMiniNext">›</button>
-    </div>
-    <div class="mini-grid" id="flightMiniDowRow"></div>
-    <div class="mini-grid" id="flightMiniGrid"></div>
-    <div class="modal-actions">
-      <button class="btn-primary" id="closeFlightDaysBtn" style="width:100%;">Concluído</button>
-    </div>
-  </div>
-</div>
-
 <!-- Gerador automático de escala -->
 <div class="modal-overlay" id="genOverlay">
   <div class="modal gen-modal" id="genModal">
@@ -1412,13 +1371,10 @@ const FUNCTIONS = [
 const DOW = ['dom','seg','ter','qua','qui','sex','sáb'];
 const MONTHS = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
 function capFirst(s){ return s.charAt(0).toUpperCase() + s.slice(1); }
-const DEFAULT_STATE = { people: [], offDays: {}, requestedOffDays: {}, absences: {}, dayAssignments: {}, airlines: [], flightDays: {}, publishedMonths: [], monthRosters: {}, coveragePairs: [], faMonths: {} };
+const DEFAULT_STATE = { people: [], offDays: {}, requestedOffDays: {}, absences: {}, dayAssignments: {}, publishedMonths: [], monthRosters: {}, coveragePairs: [], faMonths: {} };
 
 // ---------- State ----------
 let state = Object.assign({}, DEFAULT_STATE);
-const AIRLINE_COLORS = ['#3B82F6','#DC2626','#22C55E','#F59E0B','#8B5CF6','#EC4899','#14B8A6'];
-const AIRLINE_CATALOG = ['Azul','LATAM','Gol','Outra'];
-let selectedAirlineName = null;
 let calYear, calMonth; // 0-indexed month
 let miniYear, miniMonth;
 let editingPersonId = null;
@@ -1532,6 +1488,23 @@ function sortPeople(list){
     return (a.registration||'').localeCompare(b.registration||'');
   });
 }
+// Ordem da aba "Escala": Líder, Operador, Reestituição, Limpeza e, por fim, o restante
+// (Porão e quem não tem função), cada grupo em ordem alfabética pelo nome.
+const ESCALA_FN_ORDER = ['lider','operador','restituicao','limpeza'];
+function escalaRank(p){
+  const fns = p.functions||[];
+  const i = ESCALA_FN_ORDER.findIndex(id => fns.includes(id));
+  return i === -1 ? ESCALA_FN_ORDER.length : i;
+}
+function sortPeopleEscala(list){
+  return [...list].sort((a,b)=>{
+    const ra = escalaRank(a), rb = escalaRank(b);
+    if(ra !== rb) return ra - rb;
+    const byName = (a.name||'').localeCompare(b.name||'', 'pt-BR', { sensitivity: 'base' });
+    if(byName !== 0) return byName;
+    return matriculaNum(a) - matriculaNum(b);
+  });
+}
 function pad(n){ return n < 10 ? '0'+n : ''+n; }
 function iso(y,m,d){ return `${y}-${pad(m+1)}-${pad(d)}`; }
 function monthKey(y,m){ return `${y}-${pad(m+1)}`; }
@@ -1634,27 +1607,10 @@ function showToast(msg){
 }
 
 // ---------- Render root ----------
-function isFlightDay(airlineId, dateStr){
-  const arr = state.flightDays[airlineId] || [];
-  return arr.includes(dateStr);
-}
-function toggleFlightDay(airlineId, dateStr){
-  if(!state.flightDays[airlineId]) state.flightDays[airlineId] = [];
-  const arr = state.flightDays[airlineId];
-  const idx = arr.indexOf(dateStr);
-  if(idx >= 0) arr.splice(idx,1);
-  else arr.push(dateStr);
-  saveState();
-}
-function flightsOnDate(dateStr){
-  return state.airlines.filter(a => isFlightDay(a.id, dateStr));
-}
-
 function render(){
   renderCalendar();
   renderTeam();
   renderEscalaList();
-  renderVoosList();
   renderPairList();
 }
 
@@ -1863,14 +1819,10 @@ function renderCalendar(){
       const absent = isAbsent(p.id, dateStr);
       if(!off && !absent) availableCount++;
     });
-    const flights = flightsOnDate(dateStr);
-    const isBusy = flights.length >= 2;
-    const flightsHtml = flights.length > 0 ? `<span class="flight-count">${flights.length}</span>` : '';
 
     html += `<div class="cal-day ${isToday?'today':''} ${isPast?'past-day':''}" data-date="${dateStr}">
       <div class="top-row">
         <span class="daynum">${d}</span>
-        <div class="flights-row">${flightsHtml}</div>
       </div>
       <div class="bottom-row">
         <span class="count-badge ${availableCount===0?'zero':''}">${availableCount}</span>
@@ -2045,12 +1997,6 @@ function renderDaySheet(dateStr){
   const body = document.getElementById('sheetBody');
   let html = '';
 
-  const dayFlights = flightsOnDate(dateStr);
-  if(dayFlights.length){
-    html += `<div class="section-label">Voos do dia (${dayFlights.length})</div>`;
-    html += `<div class="fn-chips" style="margin-bottom:16px;">${dayFlights.map(a=>`<span class="fn-chip" style="background:${a.hex}">${a.name}</span>`).join('')}</div>`;
-  }
-
   const rosterPeople = rosterPeopleFor(y, m-1);
 
   if(state.people.length === 0){
@@ -2153,7 +2099,7 @@ function renderDaySheet(dateStr){
 }
 
 // ---------- Tabs ----------
-const TAB_ORDER = ['calendario', 'escala', 'voos', 'equipe'];
+const TAB_ORDER = ['calendario', 'escala', 'equipe'];
 
 function setActiveTabInstant(tabName){
   document.querySelectorAll('nav.tabs button').forEach(b=> b.classList.toggle('active', b.dataset.tab === tabName));
@@ -2211,7 +2157,7 @@ document.querySelectorAll('nav.tabs button').forEach(btn=>{
 });
 
 // Swipe left/right anywhere in the main content area moves between tabs
-// (Calendário ↔ Escala ↔ Voos ↔ Equipe). Doesn't wrap past the first/last tab.
+// (Calendário ↔ Escala ↔ Equipe). Doesn't wrap past the first/last tab.
 attachSwipeNav(document.querySelector('main'),
   ()=>{
     const currentTab = document.querySelector('nav.tabs button.active').dataset.tab;
@@ -2226,42 +2172,6 @@ attachSwipeNav(document.querySelector('main'),
 );
 
 // ---------- Team view ----------
-function renderVoosList(){
-  const list = document.getElementById('voosList');
-  if(!list) return;
-  if(state.airlines.length === 0){
-    list.innerHTML = `<div class="empty-state"><div style="font-size:32px;">✈️</div><p>Nenhuma companhia cadastrada.<br>Toque em "+ Companhia" para começar.</p></div>`;
-    return;
-  }
-  list.innerHTML = state.airlines.map(a=>{
-    const count = (state.flightDays[a.id]||[]).length;
-    return `<div class="team-card">
-      <div class="info">
-        <span class="name"><span class="dot" style="background:${a.hex}; display:inline-block; margin-right:6px;"></span>${a.name}</span>
-        <span class="status-tag">${count} dia(s) de voo marcados neste mês</span>
-      </div>
-      <div class="actions">
-        <button class="btn-secondary" data-id="${a.id}">Editar dias</button>
-        <button class="icon-btn-sm" data-remove="${a.id}" title="Remover">🗑</button>
-      </div>
-    </div>`;
-  }).join('');
-  list.querySelectorAll('button[data-id]').forEach(btn=>{
-    btn.addEventListener('click', ()=> openFlightDaysModal(btn.dataset.id));
-  });
-  list.querySelectorAll('button[data-remove]').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      if(!confirm('Remover essa companhia e os dias de voo marcados dela?')) return;
-      const id = btn.dataset.remove;
-      state.airlines = state.airlines.filter(a=>a.id!==id);
-      delete state.flightDays[id];
-      saveState();
-      renderVoosList();
-      renderCalendar();
-    });
-  });
-}
-
 function renderEscalaList(){
   document.getElementById('escalaMonthLabel').textContent = `${capFirst(MONTHS[calMonth])} de ${calYear}`;
   const list = document.getElementById('escalaList');
@@ -2270,7 +2180,7 @@ function renderEscalaList(){
     return;
   }
   const query = normalizeText(document.getElementById('escalaSearchInput').value.trim());
-  const filtered = sortPeople(state.people).filter(p =>
+  const filtered = sortPeopleEscala(state.people).filter(p =>
     !query || normalizeText(p.name).includes(query) || normalizeText(p.registration).includes(query)
   );
   if(filtered.length === 0){
@@ -2322,7 +2232,7 @@ function renderTeam(){
     list.innerHTML = `<div class="empty-state"><div style="font-size:32px;">👥</div><p>Nenhuma pessoa cadastrada.<br>Toque em "+ Adicionar" para começar.</p></div>`;
     return;
   }
-  const filtered = sortPeople(state.people);
+  const filtered = sortPeopleEscala(state.people);
   list.innerHTML = filtered.map(p=>{
     const chips = (p.functions||[]).map(fid=>{
       const f = fnById(fid);
@@ -2755,118 +2665,6 @@ document.getElementById('miniNext').addEventListener('click', ()=>{
   renderMiniCal();
 });
 
-// ---------- Airline modal ----------
-function renderAirlineOptions(){
-  const existingNames = state.airlines.map(a=>a.name.toLowerCase());
-  const el = document.getElementById('airlineOptions');
-  const available = AIRLINE_CATALOG.filter(name => name === 'Outra' || !existingNames.includes(name.toLowerCase()));
-  selectedAirlineName = null;
-  document.getElementById('customAirlineField').style.display = 'none';
-  document.getElementById('airlineNameInput').value = '';
-  el.innerHTML = available.map(name=>{
-    return `<label class="fn-option" data-name="${name}">
-      <input type="radio" name="airlinePick" value="${name}">
-      <span class="lbl">${name}</span>
-    </label>`;
-  }).join('');
-  el.querySelectorAll('.fn-option').forEach(opt=>{
-    opt.addEventListener('click', ()=>{
-      el.querySelectorAll('.fn-option').forEach(o=>o.classList.remove('checked'));
-      opt.classList.add('checked');
-      opt.querySelector('input').checked = true;
-      selectedAirlineName = opt.dataset.name;
-      const isOutra = selectedAirlineName === 'Outra';
-      document.getElementById('customAirlineField').style.display = isOutra ? 'block' : 'none';
-    });
-  });
-}
-function closeAirlineModal(){
-  document.getElementById('airlineModalOverlay').classList.remove('active');
-}
-registerOverlay('airlineModalOverlay', closeAirlineModal);
-document.getElementById('addAirlineBtn').addEventListener('click', ()=>{
-  renderAirlineOptions();
-  document.getElementById('airlineModalOverlay').classList.add('active');
-  pushOverlay('airlineModalOverlay');
-});
-document.getElementById('cancelAirlineBtn').addEventListener('click', ()=>{
-  requestCloseOverlay('airlineModalOverlay');
-});
-document.getElementById('airlineModalOverlay').addEventListener('click', (e)=>{
-  if(e.target.id === 'airlineModalOverlay') requestCloseOverlay('airlineModalOverlay');
-});
-document.getElementById('saveAirlineBtn').addEventListener('click', ()=>{
-  if(!selectedAirlineName){ showToast('Selecione uma companhia.'); return; }
-  let name = selectedAirlineName;
-  if(name === 'Outra'){
-    name = document.getElementById('airlineNameInput').value.trim();
-    if(!name){ showToast('Digite o nome da companhia.'); return; }
-  }
-  const hex = AIRLINE_COLORS[state.airlines.length % AIRLINE_COLORS.length];
-  state.airlines.push({ id: 'a_'+Date.now()+'_'+Math.floor(Math.random()*1000), name, hex });
-  saveState();
-  renderVoosList();
-  renderCalendar();
-  requestCloseOverlay('airlineModalOverlay');
-  showToast('Companhia adicionada.');
-});
-
-// ---------- Flight-days modal ----------
-let flightAirlineId = null;
-let flightMiniYear, flightMiniMonth;
-
-function openFlightDaysModal(airlineId){
-  flightAirlineId = airlineId;
-  const airline = state.airlines.find(a=>a.id===airlineId);
-  document.getElementById('flightDaysModalTitle').textContent = `Dias de voo — ${airline.name}`;
-  flightMiniYear = calYear; flightMiniMonth = calMonth;
-  document.getElementById('flightMiniDowRow').innerHTML = DOW.map(d=>`<div class="mini-dow">${d}</div>`).join('');
-  renderFlightMiniCal();
-  document.getElementById('flightDaysModalOverlay').classList.add('active');
-  pushOverlay('flightDaysModalOverlay');
-}
-function closeFlightDaysModal(){
-  document.getElementById('flightDaysModalOverlay').classList.remove('active');
-  flightAirlineId = null;
-  renderCalendar();
-  renderVoosList();
-}
-registerOverlay('flightDaysModalOverlay', closeFlightDaysModal);
-document.getElementById('closeFlightDaysBtn').addEventListener('click', ()=> requestCloseOverlay('flightDaysModalOverlay'));
-document.getElementById('flightDaysModalOverlay').addEventListener('click', (e)=>{
-  if(e.target.id === 'flightDaysModalOverlay') requestCloseOverlay('flightDaysModalOverlay');
-});
-
-function renderFlightMiniCal(){
-  document.getElementById('flightMiniMonthLabel').textContent = `${MONTHS[flightMiniMonth]} ${flightMiniYear}`;
-  const grid = document.getElementById('flightMiniGrid');
-  const firstDow = new Date(flightMiniYear, flightMiniMonth, 1).getDay();
-  const daysInMonth = new Date(flightMiniYear, flightMiniMonth+1, 0).getDate();
-  let html = '';
-  for(let i=0;i<firstDow;i++) html += `<div class="mini-day empty"></div>`;
-  const arr = state.flightDays[flightAirlineId] || [];
-  for(let d=1; d<=daysInMonth; d++){
-    const dateStr = iso(flightMiniYear, flightMiniMonth, d);
-    const on = arr.includes(dateStr);
-    html += `<div class="mini-day ${on?'off':''}" data-date="${dateStr}" style="${on?`background:rgba(255,107,53,0.2); border-color:var(--accent); color:var(--accent); text-decoration:none; font-weight:700;`:''}">${d}</div>`;
-  }
-  grid.innerHTML = html;
-  grid.querySelectorAll('.mini-day[data-date]').forEach(cell=>{
-    cell.addEventListener('click', ()=>{
-      toggleFlightDay(flightAirlineId, cell.dataset.date);
-      renderFlightMiniCal();
-    });
-  });
-}
-document.getElementById('flightMiniPrev').addEventListener('click', ()=>{
-  flightMiniMonth--; if(flightMiniMonth<0){ flightMiniMonth=11; flightMiniYear--; }
-  renderFlightMiniCal();
-});
-document.getElementById('flightMiniNext').addEventListener('click', ()=>{
-  flightMiniMonth++; if(flightMiniMonth>11){ flightMiniMonth=0; flightMiniYear++; }
-  renderFlightMiniCal();
-});
-
 // ---------- Importar escala de um PDF (dnata) ----------
 // Lê o PDF inteiramente no navegador (nenhum dado sai do celular), localiza a
 // linha de cabeçalho com os números dos dias (01, 02, 03...), localiza cada
@@ -2997,6 +2795,8 @@ async function parseEscalaPdf(file){
 }
 
 let pendingImport = null; // guarda o resultado processado até o usuário confirmar
+let importDayEdits = {};      // correções manuais de dias, por matrícula (só dígitos)
+let importEditingReg = null;  // matrícula que está com o editor de dias aberto
 
 document.getElementById('importPdfBtn').addEventListener('click', ()=>{
   if(!window.pdfjsLib){
@@ -3049,29 +2849,41 @@ function renderImportMatchedList(){
     container.innerHTML = `<p class="mini-hint">Nenhuma folga (F/FA) encontrada pra ninguém já cadastrado. Confira se é o PDF certo.</p>`;
     return;
   }
+  const validYear = Number.isInteger(year) && year >= 2020 && year <= 2100 && Number.isInteger(month);
+  const daysInMonth = validYear ? new Date(year, month + 1, 0).getDate() : 31;
 
-  let html = `<p style="font-weight:600; margin-bottom:8px;">Folgas encontradas (${matched.length} pessoa${matched.length>1?'s':''})</p>`;
+  let html = `<div class="imp-title">Folgas encontradas <span>${matched.length}</span></div>`;
   matched.forEach(m=>{
-    const { newDays, alreadyDays } = computeImportDiff(m.person, m.days, year, month);
-    const inRoster = isPersonInRosterForMonth(m.person.id, year, month);
-    let statusLine;
-    if(newDays.length === 0 && alreadyDays.length > 0){
-      statusLine = `<span class="status-tag" style="color:var(--c-disponivel);">✓ Folgas já cadastradas — nada novo pra importar</span>`;
-    } else {
-      const parts = [];
-      if(newDays.length) parts.push(`${newDays.length} novo(s): ${newDays.join(', ')}`);
-      if(alreadyDays.length) parts.push(`${alreadyDays.length} já cadastrado(s): ${alreadyDays.join(', ')}`);
-      statusLine = `<span class="status-tag" style="color:var(--text-faint);">${parts.join(' · ')}</span>`;
+    const days = [...new Set(m.days)].filter(d => d >= 1 && d <= daysInMonth).sort((a,b)=>a-b);
+    const existing = validYear ? (state.offDays[m.person.id] || []) : [];
+    const isExisting = d => existing.includes(iso(year, month, d));
+    const editing = importEditingReg === m.reg;
+    const inRoster = validYear && isPersonInRosterForMonth(m.person.id, year, month);
+    const name = genEsc(m.person.name);
+
+    let body;
+    if(editing){
+      let grid = '';
+      for(let d = 1; d <= daysInMonth; d++){
+        grid += `<button type="button" class="imp-day ${days.includes(d) ? 'on' : ''}" data-imp-day="${d}" data-imp-reg="${m.reg}">${d}</button>`;
+      }
+      body = `<div class="imp-grid">${grid}</div>`;
+    }else if(days.length){
+      body = `<div class="imp-chips">${days.map(d => `<span class="imp-chip ${isExisting(d) ? 'exists' : ''}">${d}</span>`).join('')}</div>`;
+      if(days.every(isExisting)) body += `<span class="status-tag" style="color:var(--c-disponivel);">✓ já cadastradas</span>`;
+    }else{
+      body = `<span class="status-tag" style="color:var(--text-faint);">Sem folgas</span>`;
     }
-    const rosterNote = !inRoster
-      ? `<span class="status-tag" style="color:var(--c-desejada);">Ainda não incluído(a) na escala do mês — será incluído(a) automaticamente</span>`
+    const rosterNote = (!inRoster && days.length)
+      ? `<span class="status-tag" style="color:var(--c-desejada);">Entra na escala do mês</span>`
       : '';
-    html += `<div class="team-card" style="margin-bottom:8px;">
+    html += `<div class="team-card imp-card">
       <div class="info">
-        <span class="name">${m.person.name}</span>
-        ${statusLine}
-        ${rosterNote}
+        <span class="name">${name}</span>
+        ${body}
+        ${editing ? '' : rosterNote}
       </div>
+      <button type="button" class="icon-btn-sm" data-imp-edit="${m.reg}" title="${editing ? 'Concluir' : 'Editar folgas'}" aria-label="${editing ? 'Concluir edição de' : 'Editar folgas de'} ${name}">${editing ? '✓' : '✎'}</button>
     </div>`;
   });
   container.innerHTML = html;
@@ -3090,10 +2902,14 @@ function renderImportReviewBody(result){
   // Casa cada matrícula encontrada no PDF com uma pessoa já cadastrada no app.
   const matched = [];
   const unmatchedRegs = [];
+  const normalize = s => (s||'').replace(/\D/g, '');
   peopleFound.forEach(pf=>{
-    const normalize = s => (s||'').replace(/\D/g, '');
     const person = state.people.find(p => normalize(p.registration) === normalize(pf.registration));
-    if(person) matched.push({ person, days: pf.days, pdfName: pf.name });
+    if(person){
+      const reg = normalize(pf.registration);
+      const days = importDayEdits[reg] ? importDayEdits[reg] : pf.days;
+      matched.push({ person, reg, days: [...days], pdfName: pf.name });
+    }
     else unmatchedRegs.push(pf);
   });
   const matchedIds = new Set(matched.map(m=>m.person.id));
@@ -3112,11 +2928,9 @@ function renderImportReviewBody(result){
         <select id="importMonthSelect" style="flex:1; background:var(--surface-2); color:var(--text); border:1px solid var(--border); border-radius:8px; padding:8px;">${monthOptions}</select>
         <input type="number" id="importYearInput" value="${currentYear}" style="width:90px; background:var(--surface-2); color:var(--text); border:1px solid var(--border); border-radius:8px; padding:8px;">
       </div>
-      <p class="mini-hint" style="margin-top:6px;">Confira se é o mês certo antes de confirmar.</p>
     </div>
   `;
 
-  html += `<p class="mini-hint" style="margin-bottom:10px;">"F" (folga) e "FA" (folga agrupada) contam como folga. Outros códigos (A9, B, J, CH...) não são tocados.</p>`;
 
   html += `<div id="importMatchedList"></div>`;
 
@@ -3148,6 +2962,8 @@ function renderImportReviewBody(result){
 }
 
 function buildImportReview(result){
+  importDayEdits = {};
+  importEditingReg = null;
   renderImportReviewBody(result);
   document.getElementById('importReviewModalOverlay').classList.add('active');
   pushOverlay('importReviewModalOverlay');
@@ -3156,15 +2972,38 @@ function buildImportReview(result){
 function closeImportReviewModal(){
   document.getElementById('importReviewModalOverlay').classList.remove('active');
   pendingImport = null;
+  importDayEdits = {};
+  importEditingReg = null;
 }
 registerOverlay('importReviewModalOverlay', closeImportReviewModal);
+document.getElementById('importReviewBody').addEventListener('click', (e)=>{
+  if(!pendingImport) return;
+  const editBtn = e.target.closest('[data-imp-edit]');
+  if(editBtn){
+    const reg = editBtn.dataset.impEdit;
+    importEditingReg = (importEditingReg === reg) ? null : reg;
+    renderImportMatchedList();
+    return;
+  }
+  const dayBtn = e.target.closest('[data-imp-day]');
+  if(dayBtn){
+    const m = pendingImport.matched.find(x => x.reg === dayBtn.dataset.impReg);
+    if(!m) return;
+    const d = parseInt(dayBtn.dataset.impDay, 10);
+    const set = new Set(m.days);
+    if(set.has(d)) set.delete(d); else set.add(d);
+    m.days = [...set].sort((a,b)=>a-b);
+    importDayEdits[m.reg] = [...m.days];
+    renderImportMatchedList();
+  }
+});
 document.getElementById('cancelImportBtn').addEventListener('click', ()=> requestCloseOverlay('importReviewModalOverlay'));
 document.getElementById('importReviewModalOverlay').addEventListener('click', (e)=>{
   if(e.target.id === 'importReviewModalOverlay') requestCloseOverlay('importReviewModalOverlay');
 });
 
 document.getElementById('confirmImportBtn').addEventListener('click', ()=>{
-  if(!pendingImport || !pendingImport.matched.length){
+  if(!pendingImport || !pendingImport.matched.some(m => m.days.length)){
     showToast('Nada pra importar.');
     return;
   }
@@ -3178,6 +3017,7 @@ document.getElementById('confirmImportBtn').addEventListener('click', ()=>{
 
   let addedTotal = 0, alreadyOffTotal = 0, skippedOutOfRange = 0;
   pendingImport.matched.forEach(m=>{
+    if(!m.days.length) return;
     if(!state.offDays[m.person.id]) state.offDays[m.person.id] = [];
     const arr = state.offDays[m.person.id];
     m.days.forEach(day=>{
@@ -3751,6 +3591,52 @@ function genBuildConfig(){
   };
 }
 
+// ---- viabilidade das restrições de "não folgar junto" ----
+// Em um grupo em que ninguém pode folgar no mesmo dia, cada folga de cada pessoa
+// ocupa um dia só dela. Então a soma das folgas do grupo não pode passar do número
+// de dias do mês. Também é impossível se duas pessoas do grupo já têm folga
+// obrigatória (pedido ou folga fixa) no mesmo dia.
+function genJoinNames(list){
+  if(list.length <= 1) return list.join('');
+  return list.slice(0, -1).join(', ') + ' e ' + list[list.length - 1];
+}
+function genGroupProblems(cfg, g){
+  const reasons = [];
+  const clashDays = [];
+  for(let d = 0; d < cfg.D; d++){
+    if(g.filter(i => cfg.people[i].forced[d]).length >= 2) clashDays.push(d + 1);
+  }
+  if(clashDays.length){
+    reasons.push(`mais de uma pessoa com folga obrigatória no dia ${clashDays.slice(0, 3).join(', ')}${clashDays.length > 3 ? '…' : ''}`);
+  }
+  const need = g.reduce((sum, i) => sum + cfg.people[i].K, 0);
+  if(need > cfg.D) reasons.push(`${g.length} pessoas precisam de ${need} folgas em dias diferentes e o mês tem ${cfg.D}`);
+  return reasons;
+}
+function genFindImpossibleGroups(cfg){
+  const found = [];
+  cfg.groups.forEach(g => {
+    const reasons = genGroupProblems(cfg, g);
+    if(reasons.length) found.push({ names: g.map(i => cfg.people[i].name), reasons });
+  });
+  return found;
+}
+// Aviso curto para um grupo (lista de ids). Vazio quando é possível.
+function genGroupWarn(ids){
+  try{
+    const cfg = genBuildConfig();
+    const idx = ids.map(id => cfg.people.findIndex(P => P.id === id)).filter(i => i >= 0);
+    if(idx.length < 2) return '';
+    const r = genGroupProblems(cfg, idx);
+    return r.length ? `<div class="gen-warn-note">⚠ Não dá: ${genEsc(r.join('; '))}.</div>` : '';
+  }catch(e){ return ''; }
+}
+function genImpossibleHtml(){
+  let bad;
+  try{ bad = genFindImpossibleGroups(genBuildConfig()); }catch(e){ return ''; }
+  return bad.map(b => `<div class="gen-warn-note" style="margin-bottom:10px;">⚠ <b>${genEsc(genJoinNames(b.names))}</b>: não dá, ${genEsc(b.reasons.join('; '))}.</div>`).join('');
+}
+
 // ---- renderização ----
 function genRenderResume(animate){
   const d = gen.resumePrompt;
@@ -3958,13 +3844,6 @@ function genStepFa(){
 }
 
 // Passo 5 — restrições de "não folgar junto"
-function genGroupWarn(size){
-  const D = genDayInfo(gen.year, gen.month).D;
-  const total = size * gen.rules.offs;
-  if(total <= D) return '';
-  const extra = total - D;
-  return `<div class="gen-warn-note">⚠ ${size} pessoas com ${gen.rules.offs} folgas cada são ${total} folgas em ${D} dias. Não dá para evitar totalmente: pelo menos ${extra} coincidência${extra > 1 ? 's' : ''}. O gerador vai reduzir ao mínimo.</div>`;
-}
 function genStep3(){
   const ids = genSelectedPeople().map(p => p.id);
   const nameOf = id => { const p = state.people.find(x => x.id === id); return p ? p.name : '?'; };
@@ -3977,7 +3856,7 @@ function genStep3(){
       html += `<div class="gen-check-row ${on ? 'on' : 'off'}" data-act="savedToggle" data-id="${pair.id}">
         <span class="gen-tick">✓</span>
         <span class="ctext">${members.map(id => genEsc(nameOf(id))).join(' ⇄ ')}</span>
-      </div>${genGroupWarn(members.length)}`;
+      </div>${on ? genGroupWarn(members) : ''}`;
     });
   }
   if(gen.extraGroups.length){
@@ -3988,13 +3867,14 @@ function genStep3(){
         <span class="gen-tick">✓</span>
         <span class="ctext">${members.map(id => genEsc(nameOf(id))).join(' ⇄ ')}</span>
         <button class="gen-x" data-act="extraRemove" data-i="${i}" title="Remover">✕</button>
-      </div>${members.length >= 2 ? genGroupWarn(members.length) : ''}`;
+      </div>${members.length >= 2 ? genGroupWarn(members) : ''}`;
     });
   }
   if(gen.draft){
     html += `<div class="gen-draft">
       <div class="gen-sec-title" style="margin-top:0;">Marque 2 ou mais pessoas</div>
       <div class="gen-pills">${genSelectedPeople().map(p => `<button class="gen-pill ${gen.draft.has(p.id) ? 'on' : ''}" data-act="draftToggle" data-pid="${p.id}"><span class="gen-check">✓</span>${genEsc(p.name)}</button>`).join('')}</div>
+      <div id="genDraftWarn">${gen.draft.size >= 2 ? genGroupWarn([...gen.draft]) : ''}</div>
       <div class="gen-draft-actions">
         <button class="btn-secondary" data-act="draftCancel">Cancelar</button>
         <button class="btn-primary" id="genDraftAdd" data-act="draftAdd" ${gen.draft.size >= 2 ? '' : 'disabled'}>Adicionar</button>
@@ -4023,7 +3903,7 @@ function genStep4(){
   genSelectedPeople().forEach(p => { (gen.requests[p.id] ? [...gen.requests[p.id]] : []).forEach(d => { if(d >= 1 && d <= D) pedidos++; }); });
   const fixas = gen.fixed.filter(x => ids.includes(x.pid) && x.dows.length).length;
   const restr = genActiveGroups(ids).length;
-  return `<p class="gen-lead">Confira as regras que o gerador vai seguir. Você pode ajustar os números.</p>
+  return `${genImpossibleHtml()}<p class="gen-lead">Confira as regras que o gerador vai seguir. Você pode ajustar os números.</p>
     <div class="gen-rule">
       <div class="rtext"><div class="rtitle">Folgas por pessoa</div><div class="rhint">Todos recebem pelo menos essa quantidade, qualquer jornada.</div></div>
       ${stepper('offs', r.offs)}
@@ -4215,7 +4095,13 @@ function genGo(step, dir){
         break;
       case 'next':     genGo(gen.step + 1, 1); break;
       case 'back':     genGo(gen.step - 1, -1); break;
-      case 'generate': genGo(GEN_STEP_RESULT, 1); break;
+      case 'generate': {
+        let bad = [];
+        try{ bad = genFindImpossibleGroups(genBuildConfig()); }catch(err){ bad = []; }
+        if(bad.length && !confirm(`Há ${bad.length} restrição${bad.length > 1 ? 'ões' : ''} de "não folgar junto" impossível${bad.length > 1 ? 'is' : ''} de cumprir. A escala vai sair com folgas juntas. Gerar mesmo assim?`)) break;
+        genGo(GEN_STEP_RESULT, 1);
+        break;
+      }
       case 'adjust':   genGo(GEN_STEP_RULES, -1); break;
       case 'again':    genGenerate(false); break;
       case 'apply':    genApply(); break;
@@ -4330,6 +4216,8 @@ function genGo(step, dir){
       el.classList.toggle('on', gen.draft.has(pid));
       const add = document.getElementById('genDraftAdd');
       if(add) add.disabled = gen.draft.size < 2;
+      const dw = document.getElementById('genDraftWarn');
+      if(dw) dw.innerHTML = gen.draft.size >= 2 ? genGroupWarn([...gen.draft]) : '';
     }
     else if(act === 'draftAdd'){
       if(!gen.draft || gen.draft.size < 2) return;
