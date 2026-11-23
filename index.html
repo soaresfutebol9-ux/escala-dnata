@@ -1285,6 +1285,20 @@
   .gen-full-host .gen-table th.nm{ top:0; z-index:5; }
   .gen-full-host .gen-table td.c{ height:28px; }
   .gen-full-host .gen-legend{ padding:10px 12px 12px; margin-top:0; }
+  .gen-choice{
+    background:var(--surface-2); border:1px solid var(--border); border-radius:14px;
+    padding:14px 16px; margin-bottom:10px; cursor:pointer;
+    transition:border-color .18s ease, transform .12s ease, opacity .18s ease;
+  }
+  .gen-choice:hover{ border-color:var(--accent); }
+  .gen-choice:active{ transform:scale(.985); }
+  .gen-choice.disabled{ opacity:.5; }
+  .gen-choice .ct{ font-size:14.5px; font-weight:700; }
+  .gen-choice .cd{ font-size:12.5px; color:var(--text-dim); margin-top:4px; line-height:1.45; }
+  .gen-table tr.frz td:not(.nm){ opacity:.55; }
+  .gen-table tr.newp td.nm{ color:var(--accent); }
+  .gen-table td.c.pre{ background:repeating-linear-gradient(45deg, transparent 0 4px, rgba(255,255,255,.06) 4px 8px); }
+  .gen-newtag{ font-size:9px; font-weight:700; background:var(--accent); color:#0F1720; border-radius:5px; padding:1px 4px; margin-left:5px; vertical-align:middle; }
   @media (prefers-reduced-motion: reduce){
     .gen-full, .gen-opt-host, .gen-full-hint{ transition:none !important; }
   }
@@ -1329,15 +1343,12 @@
 
   <!-- ESCALA VIEW -->
   <div class="view" id="view-escala">
-    <div class="team-head">
-      <h2>Escala do mês</h2>
-    </div>
     <input type="file" id="importPdfInput" accept="application/pdf" style="display:none;">
     <div class="btn-row">
       <button class="btn-secondary" id="importPdfBtn">📄 Importar PDF</button>
       <button class="btn-secondary" id="exportPdfBtn">⬇️ Exportar PDF</button>
     </div>
-    <button class="btn-magic block" id="genOpenBtn">✨ Gerar escala automática</button>
+    <button class="btn-magic block" id="genOpenBtn">✨ Gerar escala</button>
     <div class="escala-month-bar">
       <h3 id="escalaMonthLabel">—</h3>
       <div class="month-nav">
@@ -1446,7 +1457,7 @@
     </div>
     <div class="field">
       <label>Matrícula</label>
-      <input type="text" id="personRegInput" placeholder="Número de matrícula">
+      <input type="text" id="personRegInput" placeholder="Matrícula (6 dígitos)" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" autocomplete="off">
     </div>
     <div class="field">
       <label>Funções (pode marcar mais de uma)</label>
@@ -1970,10 +1981,28 @@ function pairMembers(pair){
   if(Array.isArray(pair.members)) return pair.members;
   return [pair.a, pair.b].filter(Boolean);
 }
+// Regra automática: os operadores nunca folgam juntos (sempre precisa ter ao menos um
+// operador disponível). Vale mesmo sem restrição cadastrada. Obs.: hoje só o turno do dia
+// é escalado; o turno da noite ainda não é tratado (ver pergunta pendente sobre troca dia/noite).
+function operatorAutoGroup(){
+  return state.people.filter(p => (p.functions||[]).includes('operador')).map(p => p.id);
+}
+// Restrições cadastradas + a regra automática dos operadores (sem repetir grupos iguais).
+function allCoverageGroups(){
+  const seen = new Set(), out = [];
+  const add = (members) => {
+    if(members.length < 2) return;
+    const key = [...members].sort().join('|');
+    if(seen.has(key)) return;
+    seen.add(key); out.push(members);
+  };
+  (state.coveragePairs || []).forEach(pair => add(pairMembers(pair)));
+  add(operatorAutoGroup());
+  return out;
+}
 function pairPartnersOf(personId){
   const partners = new Set();
-  state.coveragePairs.forEach(pair=>{
-    const members = pairMembers(pair);
+  allCoverageGroups().forEach(members=>{
     if(members.includes(personId)) members.forEach(m=>{ if(m !== personId) partners.add(m); });
   });
   return [...partners];
@@ -2053,15 +2082,16 @@ function renderCoverageConflictBanner(){
   const el = document.getElementById('coverageConflictBanner');
   if(!el) return;
   el.innerHTML = '';
-  if(!isMonthPublished(calYear, calMonth) || !state.coveragePairs.length) return;
+  const groups = allCoverageGroups();
+  if(!isMonthPublished(calYear, calMonth) || !groups.length) return;
   const daysInMonth = new Date(calYear, calMonth+1, 0).getDate();
   const todayStr = iso(todayObj.getFullYear(), todayObj.getMonth(), todayObj.getDate());
   const items = [];
   for(let d=1; d<=daysInMonth; d++){
     const dateStr = iso(calYear, calMonth, d);
     if(dateStr < todayStr) continue; // dia já passou — não mostra mais o aviso
-    state.coveragePairs.forEach(pair=>{
-      const offTogether = pairMembers(pair).filter(pid => isOff(pid, dateStr));
+    groups.forEach(members=>{
+      const offTogether = members.filter(pid => isOff(pid, dateStr));
       if(offTogether.length >= 2){
         items.push(`${joinNamesPT(offTogether)} estão de folga no dia ${formatDateBR(dateStr)}`);
       }
@@ -2258,7 +2288,6 @@ function renderDaySheet(dateStr){
     if(off && !absent){ rowClass += ' folga'; statusText = 'Folga'; }
     if(absent){ rowClass += ' falta'; statusText = off ? 'Falta (folga)' : 'Falta'; }
     if(code && !off && !absent) statusText = `Turno ${code}`;
-    const showShiftBtn = !off && !absent;
     const multi = pickableFunctions(p).length > 1;
     const showFaltaBtn = !off || absent; // esconde "Marcar falta" quando a pessoa está de folga (e ainda não tem falta marcada)
     return `<div class="${rowClass}">
@@ -2270,7 +2299,6 @@ function renderDaySheet(dateStr){
       </div>
       <div style="display:flex; align-items:center; gap:8px;">
         ${statusText ? `<span class="status-tag">${statusText}</span>` : ''}
-        ${showShiftBtn ? `<button class="shift-btn ${code ? 'active' : ''}" data-pid="${p.id}">${code ? code : 'Turno'}</button>` : ''}
         ${showFaltaBtn ? `<button class="falta-toggle ${absent?'active':''}" data-pid="${p.id}">${absent ? 'Remover falta' : 'Marcar falta'}</button>` : ''}
       </div>
     </div>`;
@@ -2289,9 +2317,6 @@ function renderDaySheet(dateStr){
   }
 
   body.innerHTML = html;
-  body.querySelectorAll('.shift-btn').forEach(btn=>{
-    btn.addEventListener('click', ()=> openShiftPicker(btn.dataset.pid, dateStr));
-  });
   body.querySelectorAll('.falta-toggle').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const pid = btn.dataset.pid;
@@ -2673,6 +2698,10 @@ function openPersonModalForImport(registration, name){
 }
 registerOverlay('personModalOverlay', closePersonModal);
 document.getElementById('addPersonBtn').addEventListener('click', ()=> openPersonModal(null));
+document.getElementById('personRegInput').addEventListener('input', (e)=>{
+  const clean = e.target.value.replace(/\D/g, '').slice(0, 6);
+  if(e.target.value !== clean) e.target.value = clean;
+});
 document.getElementById('escalaSearchInput').addEventListener('input', renderEscalaList);
 document.getElementById('cancelPersonBtn').addEventListener('click', ()=> requestCloseOverlay('personModalOverlay'));
 document.getElementById('personModalOverlay').addEventListener('click', (e)=>{
@@ -2683,7 +2712,13 @@ document.getElementById('savePersonBtn').addEventListener('click', ()=>{
   const name = document.getElementById('personNameInput').value.trim();
   if(!name){ showToast('Digite um nome.'); return; }
   const registration = document.getElementById('personRegInput').value.trim();
+  if(!/^\d{6}$/.test(registration)){
+    showToast(`A matrícula precisa ter exatamente 6 números${registration ? ` (você digitou ${registration.replace(/\D/g,'').length})` : ''}.`);
+    document.getElementById('personRegInput').focus();
+    return;
+  }
   const selectedFns = Array.from(document.querySelectorAll('#fnOptions input:checked')).map(i=>i.value);
+  if(!editingPersonId && !confirm(`Confirmar os dados antes de salvar?\n\nNome: ${name}\nMatrícula: ${registration}`)) return;
 
   if(editingPersonId){
     const p = state.people.find(p=>p.id===editingPersonId);
@@ -3619,42 +3654,50 @@ function genValidate(cfg, offs){
   const issues = [];
   const D = cfg.D, dows = cfg.dows;
   cfg.people.forEach((P, i) => {
-    const a = offs[i];
+    if(P.frozen) return; // quem já estava na escala não é reavaliado
+    const s = P.startDay || 0; // quem entra no meio do mês: só vale do dia de início em diante
+    const a = s ? offs[i].slice(s) : offs[i];
+    const dws = s ? dows.slice(s) : dows;
+    const forced = s ? P.forced.slice(s) : P.forced;
+    const DD = a.length;
+    const need = P.isNew ? P.K : cfg.rules.offs;
+    const faMode = P._faRelaxed ? 'none' : P.faMode;
+    const sunRule = P.sunRule && !P._sunRelaxed;
     const count = a.filter(Boolean).length;
-    if(count < cfg.rules.offs) issues.push(`${P.name}: ${count} folga(s), abaixo da meta de ${cfg.rules.offs}`);
+    if(count < need) issues.push(`${P.name}: ${count} folga(s), abaixo da meta de ${need}`);
     if(count > P.K) issues.push(`${P.name}: ${count} folgas, acima das ${P.K} definidas`);
 
-    const faDays = genFaFirstDays(a, dows);
-    const isFaFirst = new Array(D).fill(false);
+    const faDays = genFaFirstDays(a, dws);
+    const isFaFirst = new Array(DD).fill(false);
     faDays.forEach(d => { isFaFirst[d] = true; });
 
     // dias seguidos: o sábado da FA (sáb+dom) zera; o domingo da FA (dom+seg) ainda conta,
     // e a segunda (FA) zera
     let run = P.carryWork;
-    for(let d = 0; d < D; d++){
-      if(a[d] && (!isFaFirst[d] || dows[d] === 6)) run = 0;
-      else { run++; if(run > cfg.W){ issues.push(`${P.name}: passa de ${cfg.W} dias seguidos (dia ${d+1})`); break; } }
+    for(let d = 0; d < DD; d++){
+      if(a[d] && (!isFaFirst[d] || dws[d] === 6)) run = 0;
+      else { run++; if(run > cfg.W){ issues.push(`${P.name}: passa de ${cfg.W} dias seguidos (dia ${d+1+s})`); break; } }
     }
 
     // folgas coladas fora da FA
-    for(let d = 0; d < D - 1; d++){
-      if(a[d] && a[d+1] && !isFaFirst[d] && !(P.forced[d] && P.forced[d+1]) && !(d > 0 && isFaFirst[d-1])){
-        issues.push(`${P.name}: folgas coladas nos dias ${d+1} e ${d+2} fora de uma FA`);
+    for(let d = 0; d < DD - 1; d++){
+      if(a[d] && a[d+1] && !isFaFirst[d] && !(forced[d] && forced[d+1]) && !(d > 0 && isFaFirst[d-1])){
+        issues.push(`${P.name}: folgas coladas nos dias ${d+1+s} e ${d+2+s} fora de uma FA`);
         break;
       }
     }
-    if(P.faMode === 'must' && faDays.length === 0) issues.push(`${P.name}: ficou sem FA neste mês`);
-    if(P.faMode === 'must' && faDays.length > 1) issues.push(`${P.name}: mais de uma FA no mês`);
-    if(P.faMode === 'never' && faDays.length > 0 && !faDays.every(d => P.forced[d] && P.forced[d+1])){
+    if(faMode === 'must' && faDays.length === 0) issues.push(`${P.name}: ficou sem FA neste mês`);
+    if(faMode === 'must' && faDays.length > 1) issues.push(`${P.name}: mais de uma FA no mês`);
+    if(faMode === 'never' && faDays.length > 0 && !faDays.every(d => forced[d] && forced[d+1])){
       issues.push(`${P.name}: ganhou FA, mas já teve no mês passado`);
     }
 
-    if(P.sunRule){
+    if(sunRule){
       let sunOff = 0, t = P.carrySun, chainBroken = false;
-      for(let d = 0; d < D; d++){
-        if(dows[d] !== 0) continue;
+      for(let d = 0; d < DD; d++){
+        if(dws[d] !== 0) continue;
         if(a[d]) { sunOff++; t = 0; }
-        else { t++; if(t > cfg.SW && !chainBroken){ chainBroken = true; issues.push(`${P.name}: passa de ${cfg.SW} domingos seguidos sem folga (dia ${d+1})`); } }
+        else { t++; if(t > cfg.SW && !chainBroken){ chainBroken = true; issues.push(`${P.name}: passa de ${cfg.SW} domingos seguidos sem folga (dia ${d+1+s})`); } }
       }
       const allowed = Math.max(1, P.forcedSundays);
       if(sunOff === 0) issues.push(`${P.name}: nenhum domingo de folga no mês`);
@@ -3662,14 +3705,14 @@ function genValidate(cfg, offs){
     }
   });
   for(let d = 0; d < D; d++){
-    let n = 0;
-    for(let i = 0; i < offs.length; i++) if(offs[i][d]) n++;
-    if(n > cfg.M) issues.push(`Dia ${d+1}: ${n} pessoas de folga (limite ${cfg.M})`);
+    let n = 0, anyNew = false;
+    for(let i = 0; i < offs.length; i++) if(offs[i][d]){ n++; if(!cfg.people[i].frozen) anyNew = true; }
+    if(n > cfg.M && anyNew) issues.push(`Dia ${d+1}: ${n} pessoas de folga (limite ${cfg.M})`);
   }
   cfg.groups.forEach(g => {
     for(let d = 0; d < D; d++){
       const together = g.filter(i => offs[i][d]);
-      if(together.length >= 2){
+      if(together.length >= 2 && together.some(i => !cfg.people[i].frozen)){
         issues.push(`${together.map(i => cfg.people[i].name).join(', ')} folgam juntos no dia ${d+1}`);
       }
     }
@@ -3679,6 +3722,36 @@ function genValidate(cfg, offs){
 
 const GEN_MAX_WORK = 5; // regra fixa: no máximo 5 dias seguidos trabalhando
 const GEN_CLEAN_MIN = 3; // meta: pelo menos 3 da Limpeza disponíveis em cada dia
+
+// Quem entra no meio do mês: o padrão é calculado só do dia de início em diante.
+// Se as regras de FA/domingo não cabem no que sobrou do mês, elas são soltas na ordem
+// FA -> domingo, e isso fica marcado na pessoa para a tela avisar.
+function genBestPatternFrom(P, cfg, costOff, s){
+  const D2 = cfg.D - s;
+  if(D2 < 1) return null;
+  const dows2 = cfg.dows.slice(s);
+  const cfg2 = Object.assign({}, cfg, { D: D2, dows: dows2 });
+  const forced2 = P.forced.slice(s);
+  let fc = 0, fs = 0;
+  forced2.forEach((v, k) => { if(v){ fc++; if(dows2[k] === 0) fs++; } });
+  const cost2 = costOff.slice(s);
+  const hasSun = dows2.some(w => w === 0);
+  const variants = [
+    { sunRule: P.sunRule && hasSun, faMode: P.faMode },
+    { sunRule: P.sunRule && hasSun, faMode: 'never' },
+    { sunRule: false, faMode: 'never' }
+  ];
+  for(const v of variants){
+    const P2 = Object.assign({}, P, { forced: forced2, forcedCount: fc, forcedSundays: fs, carryWork: 0, carrySun: 0, sunRule: v.sunRule, faMode: v.faMode });
+    const pat = genBestPattern(P2, cfg2, cost2, 0);
+    if(pat){
+      P._sunRelaxed = !!P.sunRule && !v.sunRule;
+      P._faRelaxed = P.faMode === 'must' && v.faMode !== 'must';
+      return new Array(s).fill(false).concat(pat);
+    }
+  }
+  return null;
+}
 
 function genSolveOnce(cfg, rng){
   const N = cfg.people.length, D = cfg.D;
@@ -3695,22 +3768,36 @@ function genSolveOnce(cfg, rng){
     return out;
   });
   const offs = new Array(N).fill(null);
+  // Líder e operador não entram na contagem de "gente disponível" do calendário.
+  // regLoad = só o pessoal comum de folga em cada dia. Os operadores folgam nos dias
+  // em que sobra mais gente comum, para estarem presentes nos dias com menos gente.
+  const kindOf = cfg.people.map(P => {
+    const sp = state.people.find(x => x.id === P.id);
+    const g = sp ? genGroupOf(sp) : 'none';
+    return g === 'operador' ? 'op' : (g === 'lider' ? 'lead' : null);
+  });
+  const regLoad = new Int32Array(D);
 
   function removePerson(i){
     const a = offs[i]; if(!a) return;
-    for(let d = 0; d < D; d++) if(a[d]){ load[d]--; if(isClean[i]) cleanOff[d]--; personGroups[i].forEach(g => groupCnt[g][d]--); }
+    for(let d = 0; d < D; d++) if(a[d]){ load[d]--; if(!kindOf[i]) regLoad[d]--; if(isClean[i]) cleanOff[d]--; personGroups[i].forEach(g => groupCnt[g][d]--); }
     offs[i] = null;
   }
   function addPerson(i, a){
     offs[i] = a;
-    for(let d = 0; d < D; d++) if(a[d]){ load[d]++; if(isClean[i]) cleanOff[d]++; personGroups[i].forEach(g => groupCnt[g][d]++); }
+    for(let d = 0; d < D; d++) if(a[d]){ load[d]++; if(!kindOf[i]) regLoad[d]++; if(isClean[i]) cleanOff[d]++; personGroups[i].forEach(g => groupCnt[g][d]++); }
   }
   // MODO RÍGIDO: usa só o nível 0 das regras (nada é afrouxado em silêncio).
   // Se a pessoa não tem padrão possível, devolve null e a geração é recusada.
   function place(i, noiseAmp){
     const costOff = new Float64Array(D);
     for(let d = 0; d < D; d++){
-      let c = 10 * (2 * load[d] + 1);                 // equilibra a carga entre os dias
+      // Ao acrescentar alguém, encaixar nos dias mais vazios é regra dominante (peso 40x maior),
+      // para não criar dia com muita gente de folga ao lado de dia com pouca.
+      // operador: peso alto e olha só o pessoal comum (folga onde há mais gente disponível)
+      const lv = kindOf[i] === 'lead' ? load[d] : regLoad[d];
+      const wt = (cfg.append || kindOf[i] === 'op') ? 400 : 10;
+      let c = wt * (2 * lv + 1); // equilibra a carga entre os dias
       if(load[d] + 1 > cfg.M) c += 50000;             // passou do limite por dia
       for(const g of personGroups[i]) c += 60000 * groupCnt[g][d]; // folgaria junto de alguém do grupo
       if(isClean[i]){
@@ -3722,15 +3809,18 @@ function genSolveOnce(cfg, rng){
       if(noiseAmp) c += rng() * noiseAmp;
       costOff[d] = c;
     }
-    const pat = genBestPattern(cfg.people[i], cfg, costOff, 0);
+    const Pi = cfg.people[i];
+    const pat = Pi.isNew ? genBestPatternFrom(Pi, cfg, costOff, Pi.startDay || 0) : genBestPattern(Pi, cfg, costOff, 0);
     if(!pat) return null;
     addPerson(i, pat);
     return pat;
   }
 
   // mais travados primeiro (quem tem pedidos/folgas fixas), com desempate aleatório
-  const order = cfg.people.map((P, i) => ({ i, k: P.forcedCount + rng() * 0.9 }))
-    .sort((a, b) => b.k - a.k).map(x => x.i);
+  // pessoas congeladas (já estavam na escala) entram na conta, mas nunca são refeitas
+  cfg.people.forEach((P, i) => { if(P.frozen) addPerson(i, P.forced.slice()); });
+  const order = cfg.people.map((P, i) => ({ i, k: P.forcedCount + rng() * 0.9, fz: !!P.frozen }))
+    .filter(x => !x.fz).sort((a, b) => b.k - a.k).map(x => x.i);
   for(const i of order){
     if(!place(i, 40)) return { fail: true, person: i };
   }
@@ -3782,7 +3872,7 @@ async function genRun(cfg, seed, opt){
   const t0 = Date.now();
   const found = [];
   let bestBad = null, stale = 0;
-  const minDiff = Math.max(4, Math.round(cfg.people.length * cfg.D * 0.03));
+  const minDiff = cfg.append ? 2 : Math.max(4, Math.round(cfg.people.length * cfg.D * 0.03));
   for(let k = 0; k < maxTries && found.length < want; k++){
     const sol = genSolveOnce(cfg, rng);
     if(sol.fail) break;
@@ -3895,6 +3985,27 @@ function genPrecheckDeep(cfg){
   });
 }
 
+function genPrecheckAppend(cfg){
+  const items = [];
+  const zero = new Float64Array(cfg.D);
+  cfg.people.forEach(P => {
+    if(!P.isNew) return;
+    const rem = cfg.D - (P.startDay || 0);
+    if(rem < 1){ items.push({ title: P.name, detail: 'o dia de início está fora do mês.', fix: 'Escolha um dia de início dentro do mês.' }); return; }
+    if(genBestPatternFrom(P, cfg, zero, P.startDay || 0)) return;
+    const works = k => !!genBestPatternFrom(Object.assign({}, P, { K: k }), cfg, zero, P.startDay || 0);
+    let sug = null;
+    for(let k = P.K + 1; k <= 9 && !sug; k++) if(works(k)) sug = k;
+    for(let k = P.K - 1; k >= 1 && !sug; k--) if(works(k)) sug = k;
+    items.push({
+      title: P.name,
+      detail: `com ${P.K} folga${P.K > 1 ? 's' : ''} em ${rem} dia${rem > 1 ? 's' : ''} restantes não dá para respeitar o limite de ${cfg.W} dias seguidos trabalhando.`,
+      fix: sug ? `Com ${sug} folga${sug > 1 ? 's' : ''} fecha. Ajuste “Folgas” no passo anterior ou mude o dia de início.` : 'Mude o dia de início ou o número de folgas.'
+    });
+  });
+  return items;
+}
+
 function genSetLoadingSub(txt){
   const s = document.querySelector('#genBody .gen-loading .sub');
   if(s) s.textContent = txt;
@@ -3911,7 +4022,7 @@ async function genDiagnoseRun(cfg, bad, seed){
   for(let d = 0; d < cfg.D; d++) if(bad.load[d] > cfg.M) over.push(d + 1);
   const conflicts = cfg.groups.map(g => {
     let n = 0;
-    for(let d = 0; d < cfg.D; d++) if(g.filter(i => bad.offs[i][d]).length >= 2) n++;
+    for(let d = 0; d < cfg.D; d++){ const tg = g.filter(i => bad.offs[i][d]); if(tg.length >= 2 && tg.some(i => !cfg.people[i].frozen)) n++; }
     return { g, n };
   }).filter(x => x.n > 0).sort((a, b) => b.n - a.n);
   const rest = bad.issues.filter(t => !/^Dia \d+:/.test(t) && !/folgam juntos/.test(t));
@@ -3977,7 +4088,7 @@ function genCurrentM(){ return gen.rules.maxPerDay != null ? gen.rules.maxPerDay
 // ---- rascunho (fica salvo neste aparelho) ----
 const GEN_DRAFT_KEY = 'escalaGenDraft';
 function genSaveDraft(){
-  if(!gen || gen.resumePrompt) return;
+  if(!gen || gen.resumePrompt || gen.mode !== 'full') return;
   try{
     const requests = {};
     Object.keys(gen.requests).forEach(pid => { requests[pid] = [...gen.requests[pid]]; });
@@ -4041,19 +4152,24 @@ function genOpen(){
     selected: new Set(rosterIds.length ? rosterIds : state.people.map(p => p.id)),
     requests: {}, fixed: [], faLast: new Set(), savedOff: {}, extraGroups: [], draft: null, openReq: null,
     rules: { offs: 8, maxWork: 5, maxSun: 5, maxPerDay: null },
-    result: null, runToken: 0
+    result: null, runToken: 0,
+    mode: 'full', appendSel: new Set(), appendStart: 1, appendOffs: null, appendM: null
   };
   genPrefillRequests();
   genPrefillFa();
-  const draft = genLoadDraft();
-  if(draft) gen.resumePrompt = draft;
+  if(genMonthHasSchedule(gen.year, gen.month)){
+    gen.mode = 'choose'; // já existe escala neste mês: pergunta se acrescenta alguém ou gera do zero
+  }else{
+    const draft = genLoadDraft();
+    if(draft) gen.resumePrompt = draft;
+  }
   document.getElementById('genOverlay').classList.add('active');
   pushOverlay('genOverlay');
   genRender(true);
 }
 function genClose(){
   try{ genFullClose(); }catch(e){}
-  const hadDraft = gen && !gen.applied && !gen.resumePrompt && !!genLoadDraft();
+  const hadDraft = gen && gen.mode === 'full' && !gen.applied && !gen.resumePrompt && !!genLoadDraft();
   document.getElementById('genOverlay').classList.remove('active');
   gen = null;
   if(hadDraft) showToast('Rascunho salvo. Você retoma de onde parou.');
@@ -4141,6 +4257,9 @@ function genActiveGroups(selectedIds){
     const members = g.filter(id => selectedIds.includes(id));
     if(members.length >= 2) groups.push(members);
   });
+  // regra automática: operadores nunca folgam juntos
+  const ops = operatorAutoGroup().filter(id => selectedIds.includes(id));
+  if(ops.length >= 2) groups.push(ops);
   return groups;
 }
 function genBuildConfig(){
@@ -4260,6 +4379,9 @@ function genRenderResume(animate){
 function genRender(animate){
   if(!gen) return;
   if(gen.resumePrompt){ genRenderResume(animate); return; }
+  if(gen.mode === 'choose'){ genRenderChoose(animate); return; }
+  if(gen.mode === 'append'){ genRenderAppend(animate); return; }
+  document.querySelectorAll('#genProgress span').forEach(el => { el.style.display = ''; });
   const st = GEN_STEPS[gen.step];
   document.getElementById('genModal').classList.toggle('wide', gen.step === GEN_STEP_RESULT);
   document.getElementById('genEyebrow').textContent = `Passo ${gen.step + 1} de ${GEN_STEPS.length} · ${st.eyebrow}`;
@@ -4276,16 +4398,21 @@ function genRender(animate){
 function genRenderFooter(){
   const foot = document.getElementById('genFoot');
   const s = gen.step;
+  const ap = gen.mode === 'append';
+  const RULES = ap ? 1 : GEN_STEP_RULES;
   let h = '';
-  if(s === 0){
+  if(gen.mode === 'choose'){
+    h = `<button class="btn-secondary" data-nav="close">Cancelar</button>`;
+  }else if(s === 0){
+    const ok = ap ? gen.appendSel.size : gen.selected.size;
     h = `<button class="btn-secondary" data-nav="close">Cancelar</button>
-         <button class="btn-primary" data-nav="next" ${gen.selected.size ? '' : 'disabled'}>Continuar</button>`;
-  }else if(s < GEN_STEP_RULES){
+         <button class="btn-primary" data-nav="next" ${ok ? '' : 'disabled'}>Continuar</button>`;
+  }else if(s < RULES){
     h = `<button class="btn-secondary" data-nav="back">Voltar</button>
          <button class="btn-primary" data-nav="next">Continuar</button>`;
-  }else if(s === GEN_STEP_RULES){
+  }else if(s === RULES){
     h = `<button class="btn-secondary" data-nav="back">Voltar</button>
-         <button class="btn-primary" data-nav="generate">✨ Gerar escala</button>`;
+         <button class="btn-primary" data-nav="generate">${ap ? '✨ Encaixar na escala' : '✨ Gerar escala'}</button>`;
   }else{
     const r = gen.result;
     if(r && r.options.length){
@@ -4497,9 +4624,9 @@ function genTableHtml(cfg, sol){
       const isFa = faLabel[i].includes(d);
       const cls = isFa ? 'fa' : (P.reqMask[d] ? 'req' : '');
       const delay = Math.min(i * 24 + d * 7, 600);
-      cells += `<td class="c ${(dows[d] === 0 || dows[d] === 6) ? 'wknd' : ''}">${a[d] ? `<span class="gen-cell ${cls}" style="animation-delay:${delay}ms">${isFa ? 'FA' : 'F'}</span>` : ''}</td>`;
+      cells += `<td class="c ${(dows[d] === 0 || dows[d] === 6) ? 'wknd' : ''} ${(P.isNew && d < (P.startDay || 0)) ? 'pre' : ''}">${a[d] ? `<span class="gen-cell ${cls}" style="animation-delay:${delay}ms">${isFa ? 'FA' : 'F'}</span>` : ''}</td>`;
     }
-    rows += `<tr><td class="nm" title="${genEsc(P.name)}">${genEsc(P.name)}</td>${cells}<td class="tot ${count < cfg.rules.offs ? 'bad' : ''}">${count}</td></tr>`;
+    rows += `<tr class="${P.frozen ? 'frz' : (P.isNew ? 'newp' : '')}"><td class="nm" title="${genEsc(P.name)}">${genEsc(P.name)}${P.isNew ? '<span class="gen-newtag">novo</span>' : ''}</td>${cells}<td class="tot ${(!P.frozen && !P.isNew && count < cfg.rules.offs) ? 'bad' : ''}">${count}</td></tr>`;
   });
   let foot = `<tr class="foot"><td class="nm">Folgam</td>`;
   for(let d = 0; d < D; d++) foot += `<td class="${sol.load[d] > cfg.M ? 'over' : ''}">${sol.load[d]}</td>`;
@@ -4519,8 +4646,23 @@ function genOptionInner(i, noAnim){
   const sol = options[i];
   const maxLoad = Math.max(...sol.load);
   const withFa = cfg.people.filter((P, k) => genFaFirstDays(sol.offs[k], cfg.dows).length > 0).length;
+  let meta = `<div class="gen-opt-meta">No máximo ${maxLoad} pessoa${maxLoad > 1 ? 's' : ''} de folga no mesmo dia · ${withFa} com FA</div>`;
+  if(cfg.append){
+    meta = `<div class="gen-opt-meta">As folgas de quem já estava na escala foram mantidas.</div>`;
+    cfg.people.forEach((P, k) => {
+      if(!P.isNew) return;
+      const days = sol.offs[k].map((v, d) => v ? d + 1 : null).filter(Boolean);
+      const notes = [];
+      if(P._faRelaxed) notes.push('sem FA (entra no meio do mês)');
+      if(P._sunRelaxed) notes.push('sem domingo de folga (não coube no que sobrou do mês)');
+      // quantas pessoas que já estavam na escala folgavam em cada dia escolhido
+      const already = d => cfg.people.reduce((n, Q, q) => n + ((!Q.isNew && sol.offs[q][d - 1]) ? 1 : 0), 0);
+      const daysTxt = days.map(d => `${d} (${already(d)} já folgava${already(d) === 1 ? '' : 'm'})`).join(', ');
+      meta += `<div class="gen-opt-meta"><b>${genEsc(P.name)}</b>: folga nos dias ${daysTxt}${notes.length ? ' · ' + notes.join(', ') : ''}</div>`;
+    });
+  }
   return `<div class="gen-verdict ok"><span class="vicon">✅</span><div><div class="vtitle">Todas as regras foram respeitadas</div></div></div>
-    <div class="gen-opt-meta">No máximo ${maxLoad} pessoa${maxLoad > 1 ? 's' : ''} de folga no mesmo dia · ${withFa} com FA</div>
+    ${meta}
     <div class="gen-table-wrap ${noAnim ? 'noanim' : ''}">${genTableHtml(cfg, sol)}</div>${genLegendHtml()}`;
 }
 function genFullInner(i){
@@ -4604,6 +4746,7 @@ function genFullLayout(){
     inner.style.width = ''; inner.style.height = '';
   }
 }
+let genFullAuto = true; // true = em pé, a escala já abre deitada; o ⟳ desliga/liga isso
 function genOpenFull(){
   const r = gen && gen.result;
   if(!r || !r.options.length) return;
@@ -4613,6 +4756,9 @@ function genOpenFull(){
   document.getElementById('genFullTabs').innerHTML = genTabsHtml();
   document.getElementById('genFullHost').innerHTML = genFullInner(r.active);
   f.setAttribute('aria-hidden', 'false');
+  genFullAuto = true;
+  // celular em pé: já abre na horizontal (tela girada), sem precisar apertar nada
+  f.classList.toggle('force-land', window.innerHeight > window.innerWidth);
   genFullLayout();
   pushOverlay('genFull');
   requestAnimationFrame(() => f.classList.add('open'));
@@ -4626,6 +4772,152 @@ function genFullClose(){
 }
 registerOverlay('genFull', genFullClose);
 
+// ---- acrescentar pessoa à escala já feita ----
+function genMonthHasSchedule(year, month){
+  return state.people.some(p => offDaysCountInMonth(p.id, year, month) > 0);
+}
+function genAppendCandidates(){
+  return sortPeople(state.people.filter(p => offDaysCountInMonth(p.id, gen.year, gen.month) === 0));
+}
+function genAppendExisting(){
+  return sortPeople(state.people.filter(p => offDaysCountInMonth(p.id, gen.year, gen.month) > 0));
+}
+function genAppendStartDefault(){
+  const t = new Date();
+  return (t.getFullYear() === gen.year && t.getMonth() === gen.month) ? t.getDate() : 1;
+}
+function genAppendPeak(){
+  const { D } = genDayInfo(gen.year, gen.month);
+  const prefix = monthKey(gen.year, gen.month) + '-';
+  const load = new Array(D).fill(0);
+  genAppendExisting().forEach(p => (state.offDays[p.id] || []).forEach(ds => {
+    if(ds.startsWith(prefix)){ const d = parseInt(ds.slice(8, 10), 10); if(d >= 1 && d <= D) load[d - 1]++; }
+  }));
+  return Math.max(1, ...load);
+}
+function genAppendOffsVal(){
+  if(gen.appendOffs != null) return gen.appendOffs;
+  const { D } = genDayInfo(gen.year, gen.month);
+  const ex = genAppendExisting();
+  const total = ex.reduce((s, p) => s + offDaysCountInMonth(p.id, gen.year, gen.month), 0);
+  const avg = ex.length ? total / ex.length : 8;
+  const rem = D - (gen.appendStart - 1);
+  return genClamp(Math.round(avg * rem / D), 1, 9); // proporcional aos dias que faltam
+}
+function genAppendMVal(){
+  const peak = genAppendPeak();
+  return gen.appendM != null ? Math.max(gen.appendM, peak) : peak + 1; // sugestão: um a mais que o dia mais cheio de hoje
+}
+function genBuildAppendConfig(){
+  const { D, dows } = genDayInfo(gen.year, gen.month);
+  const prefix = monthKey(gen.year, gen.month) + '-';
+  const startIdx = genClamp(gen.appendStart, 1, D) - 1;
+  const newList = sortPeople(state.people.filter(p => gen.appendSel.has(p.id)));
+  const oldList = genAppendExisting().filter(p => !gen.appendSel.has(p.id));
+  const dayList = (arr) => (arr || []).filter(ds => ds.startsWith(prefix)).map(ds => parseInt(ds.slice(8, 10), 10)).filter(d => d >= 1 && d <= D);
+  const offsVal = genAppendOffsVal();
+  const mkNew = p => {
+    const none = new Array(D).fill(false);
+    return { id: p.id, name: p.name, forced: none.slice(), fixedMask: none.slice(), reqMask: none.slice(), forcedCount: 0, forcedSundays: 0,
+      sunRule: true, faMode: 'must', carryWork: 0, carrySun: 0, K: offsVal, isNew: true, startDay: startIdx };
+  };
+  const mkOld = p => {
+    const forced = new Array(D).fill(false), req = new Array(D).fill(false);
+    dayList(state.offDays[p.id]).forEach(d => { forced[d - 1] = true; });
+    dayList((state.requestedOffDays || {})[p.id]).forEach(d => { req[d - 1] = true; });
+    let n = 0, sun = 0;
+    forced.forEach((v, d) => { if(v){ n++; if(dows[d] === 0) sun++; } });
+    return { id: p.id, name: p.name, forced, fixedMask: new Array(D).fill(false), reqMask: req, forcedCount: n, forcedSundays: sun,
+      sunRule: true, faMode: 'must', carryWork: 0, carrySun: 0, K: n, frozen: true };
+  };
+  const ordered = newList.concat(oldList);
+  const people = newList.map(mkNew).concat(oldList.map(mkOld));
+  const ids = ordered.map(p => p.id);
+  const groups = genActiveGroups(ids).map(g => g.map(id => ids.indexOf(id)));
+  const cleanIdx = ordered.map((p, i) => genGroupOf(p) === 'limpeza' ? i : -1).filter(i => i >= 0);
+  return {
+    year: gen.year, month: gen.month, D, dows, people, groups, cleanIdx,
+    W: GEN_MAX_WORK, SW: gen.rules.maxSun, M: genAppendMVal(),
+    rules: { offs: offsVal }, maxOffs: MAX_OFF_DAYS_PER_MONTH, append: true
+  };
+}
+
+function genRenderChoose(animate){
+  document.getElementById('genModal').classList.remove('wide');
+  document.getElementById('genEyebrow').textContent = `Escala de ${genMonthName()}`;
+  document.getElementById('genTitle').textContent = 'O que você quer fazer?';
+  document.querySelectorAll('#genProgress span').forEach(el => { el.style.display = 'none'; });
+  const cands = genAppendCandidates();
+  const cls = animate ? (gen.dir > 0 ? 'anim-fwd' : 'anim-back') : '';
+  document.getElementById('genBody').innerHTML = `<div class="gen-step ${cls}">
+    <p class="gen-lead">Já existe escala em <b>${capFirst(genMonthName())} de ${gen.year}</b>.</p>
+    <div class="gen-choice ${cands.length ? '' : 'disabled'}" data-act="chooseAppend">
+      <div class="ct">➕ Acrescentar pessoa à escala atual</div>
+      <div class="cd">${cands.length
+        ? 'Mantém tudo que já está feito e encaixa só quem entrou. Ninguém que já está na escala é alterado.'
+        : 'Todo mundo já tem folgas neste mês. Cadastre quem entrou na aba Equipe para usar esta opção.'}</div>
+    </div>
+    <div class="gen-choice" data-act="chooseFull">
+      <div class="ct">🔄 Gerar do zero</div>
+      <div class="cd">Cria a escala do mês inteira de novo. Ao aplicar, substitui as folgas atuais.</div>
+    </div>
+  </div>`;
+  genRenderFooter();
+}
+
+function genRenderAppend(animate){
+  const titles = [
+    { eyebrow: 'Acrescentar', title: 'Quem entrou?' },
+    { eyebrow: 'Regras',      title: 'Encaixe na escala' },
+    { eyebrow: 'Resultado',   title: 'Escala com a pessoa nova' }
+  ];
+  const st = titles[gen.step];
+  document.getElementById('genModal').classList.toggle('wide', gen.step === 2);
+  document.getElementById('genEyebrow').textContent = `Passo ${gen.step + 1} de 3 · ${st.eyebrow}`;
+  document.getElementById('genTitle').textContent = st.title;
+  document.querySelectorAll('#genProgress span').forEach((el, i) => { el.style.display = i < 3 ? '' : 'none'; el.classList.toggle('done', i <= gen.step); });
+  const builders = [genAppendStep0, genAppendStep1, genStep5];
+  const cls = animate ? (gen.dir > 0 ? 'anim-fwd' : 'anim-back') : '';
+  const body = document.getElementById('genBody');
+  body.innerHTML = `<div class="gen-step ${cls}">${builders[gen.step]()}</div>`;
+  if(animate) body.scrollTop = 0;
+  genRenderFooter();
+}
+
+function genAppendStep0(){
+  const cands = genAppendCandidates();
+  const { D } = genDayInfo(gen.year, gen.month);
+  let html = `<p class="gen-lead">Quem <b>entrou</b> depois que a escala de <b>${capFirst(genMonthName())}</b> foi feita? As folgas de quem já está na escala <b>não serão alteradas</b>.</p>`;
+  html += `<div class="gen-pills">${cands.map(p => `<button class="gen-pill ${gen.appendSel.has(p.id) ? 'on' : ''}" data-act="appendToggle" data-pid="${p.id}"><span class="gen-check">✓</span>${genEsc(p.name)}</button>`).join('')}</div>`;
+  let opts = '';
+  for(let d = 1; d <= D; d++){
+    const w = DOW[new Date(gen.year, gen.month, d).getDay()];
+    opts += `<option value="${d}" ${d === gen.appendStart ? 'selected' : ''}>${d} de ${genMonthName()} (${w})</option>`;
+  }
+  html += `<div class="gen-sec-title">Primeiro dia na escala</div>
+    <div class="gen-month-row"><select class="gen-select" id="genAppendStart">${opts}</select></div>
+    <p class="mini-hint">As folgas dela(e) só entram a partir desse dia.</p>`;
+  return html;
+}
+
+function genAppendStep1(){
+  const { D } = genDayInfo(gen.year, gen.month);
+  const rem = D - (gen.appendStart - 1);
+  const peak = genAppendPeak();
+  const stepper = (key, val) => `<div class="gen-stepper">
+      <button data-act="step" data-key="${key}" data-d="-1">−</button><span class="val">${val}</span><button data-act="step" data-key="${key}" data-d="1">+</button>
+    </div>`;
+  return `<p class="gen-lead">As folgas de todo mundo que já está na escala ficam <b>exatamente como estão</b>. Só a pessoa nova é encaixada, respeitando as mesmas regras (dias seguidos, FA, domingo, restrições).</p>
+    <div class="gen-rule">
+      <div class="rtext"><div class="rtitle">Folgas até o fim do mês</div><div class="rhint">Restam ${rem} dia${rem > 1 ? 's' : ''}. Sugestão proporcional aos dias que faltam.</div></div>
+      ${stepper('appendOffs', genAppendOffsVal())}
+    </div>
+    <div class="gen-rule">
+      <div class="rtext"><div class="rtitle">Máx. pessoas de folga no mesmo dia</div><div class="rhint">Hoje o dia mais cheio tem ${peak}. Mínimo: ${peak}.</div></div>
+      ${stepper('appendM', genAppendMVal())}
+    </div>`;
+}
+
 // ---- gerar / aplicar ----
 async function genGenerate(animate){
   if(!gen) return;
@@ -4637,8 +4929,9 @@ async function genGenerate(animate){
   if(!gen || token !== gen.runToken) return;
   let result;
   try{
-    const cfg = genBuildConfig();
-    const problems = genPrecheckFast(cfg).concat(genPrecheckDeep(cfg));
+    const append = gen.mode === 'append';
+    const cfg = append ? genBuildAppendConfig() : genBuildConfig();
+    const problems = append ? genPrecheckAppend(cfg) : genPrecheckFast(cfg).concat(genPrecheckDeep(cfg));
     if(problems.length){
       result = { cfg, options: [], active: 0, error: { problems } };
     }else{
@@ -4656,7 +4949,7 @@ async function genGenerate(animate){
     }
   }catch(err){
     console.error('Falha ao gerar escala:', err);
-    if(gen){ showToast('Não consegui gerar a escala. Confira as opções e tente de novo.'); genGo(GEN_STEP_RULES, -1); }
+    if(gen){ showToast('Não consegui gerar a escala. Confira as opções e tente de novo.'); genGo(genRulesStep(), -1); }
     return;
   }
   if(!gen || token !== gen.runToken) return;
@@ -4672,7 +4965,7 @@ function genApply(){
   const { year, month } = cfg;
   const key = monthKey(year, month);
   const prefix = key + '-';
-  const hasExisting = cfg.people.some(P => (state.offDays[P.id] || []).some(ds => ds.startsWith(prefix)));
+  const hasExisting = cfg.people.some(P => !P.frozen && (state.offDays[P.id] || []).some(ds => ds.startsWith(prefix)));
   if(hasExisting && !confirm(`Isso vai substituir as folgas atuais das pessoas selecionadas em ${MONTHS[month]} de ${year}. Continuar?`)) return;
 
   if(!state.publishedMonths) state.publishedMonths = [];
@@ -4681,11 +4974,12 @@ function genApply(){
   if(!state.monthRosters[key]) state.monthRosters[key] = [];
   if(!state.requestedOffDays) state.requestedOffDays = {};
   if(!state.faMonths) state.faMonths = {};
-  const selectedIds = cfg.people.map(P => P.id);
-  const faIds = cfg.people.filter((P, i) => genFaFirstDays(sol.offs[i], cfg.dows).length > 0).map(P => P.id);
+  const selectedIds = cfg.people.filter(P => !P.frozen).map(P => P.id);
+  const faIds = cfg.people.filter((P, i) => !P.frozen && genFaFirstDays(sol.offs[i], cfg.dows).length > 0).map(P => P.id);
   state.faMonths[key] = (state.faMonths[key] || []).filter(id => !selectedIds.includes(id)).concat(faIds);
 
   cfg.people.forEach((P, i) => {
+    if(P.frozen) return; // quem já estava na escala fica exatamente como está
     const keepOther = (state.offDays[P.id] || []).filter(ds => !ds.startsWith(prefix));
     const newDays = [];
     sol.offs[i].forEach((isOffDay, d) => { if(isOffDay) newDays.push(iso(year, month, d + 1)); });
@@ -4708,16 +5002,18 @@ function genApply(){
   gen.applied = true;
   genClearDraft();
   requestCloseOverlay('genOverlay');
-  showToast('Escala gerada e aplicada ✓');
+  showToast(cfg.append ? 'Pessoa acrescentada à escala ✓' : 'Escala gerada e aplicada ✓');
 }
 
+function genResultStep(){ return gen && gen.mode === 'append' ? 2 : GEN_STEP_RESULT; }
+function genRulesStep(){ return gen && gen.mode === 'append' ? 1 : GEN_STEP_RULES; }
 function genGo(step, dir){
   if(!gen) return;
   gen.dir = dir;
   gen.step = step;
   gen.runToken++;
   genSaveDraft();
-  if(step === GEN_STEP_RESULT){ genGenerate(true); return; }
+  if(step === genResultStep()){ genGenerate(true); return; }
   genRender(true);
 }
 
@@ -4750,8 +5046,8 @@ function genGo(step, dir){
         break;
       case 'next':     genGo(gen.step + 1, 1); break;
       case 'back':     genGo(gen.step - 1, -1); break;
-      case 'generate': genGo(GEN_STEP_RESULT, 1); break;
-      case 'adjust':   genGo(GEN_STEP_RULES, -1); break;
+      case 'generate': genGo(genResultStep(), 1); break;
+      case 'adjust':   genGo(genRulesStep(), -1); break;
       case 'again':    genGenerate(false); break;
       case 'apply':    genApply(); break;
     }
@@ -4760,7 +5056,10 @@ function genGo(step, dir){
   body.addEventListener('change', (e)=>{
     if(!gen) return;
     const t = e.target;
-    if(t.id === 'genMonth'){
+    if(t.id === 'genAppendStart'){
+      gen.appendStart = parseInt(t.value, 10);
+      gen.appendOffs = null;
+    }else if(t.id === 'genMonth'){
       gen.month = parseInt(t.value, 10);
       genPrefillRequests();
       genPrefillFa();
@@ -4881,13 +5180,38 @@ function genGo(step, dir){
     else if(act === 'step'){
       const key = el.dataset.key, dlt = parseInt(el.dataset.d, 10);
       const limits = { offs: [5, 9], maxWork: [3, 7], maxSun: [2, 8] };
-      if(key === 'maxPerDay'){
+      if(key === 'appendOffs'){
+        gen.appendOffs = genClamp(genAppendOffsVal() + dlt, 1, 9);
+      }else if(key === 'appendM'){
+        gen.appendM = genClamp(genAppendMVal() + dlt, genAppendPeak(), Math.max(genAppendPeak(), state.people.length));
+      }else if(key === 'maxPerDay'){
         const N = Math.max(1, genSelectedPeople().length);
         gen.rules.maxPerDay = genClamp(genCurrentM() + dlt, 1, N);
       }else if(limits[key]){
         gen.rules[key] = genClamp(gen.rules[key] + dlt, limits[key][0], limits[key][1]);
       }
       genRender(false);
+    }
+    else if(act === 'chooseAppend'){
+      const cands = genAppendCandidates();
+      if(!cands.length){ showToast('Todo mundo já tem folgas neste mês. Cadastre quem entrou na aba Equipe.'); return; }
+      gen.mode = 'append'; gen.step = 0; gen.dir = 1;
+      gen.appendSel = new Set(cands.length === 1 ? [cands[0].id] : []);
+      gen.appendStart = genAppendStartDefault(); gen.appendOffs = null; gen.appendM = null;
+      genRender(true);
+    }
+    else if(act === 'chooseFull'){
+      gen.mode = 'full'; gen.step = 0; gen.dir = 1;
+      document.querySelectorAll('#genProgress span').forEach(x => { x.style.display = ''; });
+      const d = genLoadDraft(); if(d) gen.resumePrompt = d;
+      genRender(true);
+    }
+    else if(act === 'appendToggle'){
+      const pid = el.dataset.pid;
+      if(gen.appendSel.has(pid)) gen.appendSel.delete(pid); else gen.appendSel.add(pid);
+      gen.appendOffs = null;
+      el.classList.toggle('on', gen.appendSel.has(pid));
+      genRenderFooter();
     }
     else if(act === 'optPick'){ genShowOption(parseInt(el.dataset.i, 10)); }
     else if(act === 'expand'){ genOpenFull(); }
@@ -4904,14 +5228,19 @@ function genGo(step, dir){
 (function genWireFull(){
   const f = document.getElementById('genFull');
   document.getElementById('genFullClose').addEventListener('click', () => requestCloseOverlay('genFull'));
-  document.getElementById('genRotBtn').addEventListener('click', () => { f.classList.toggle('force-land'); genFullLayout(); });
+  document.getElementById('genRotBtn').addEventListener('click', () => {
+    genFullAuto = f.classList.toggle('force-land');
+    genFullLayout();
+  });
   f.addEventListener('click', (e) => {
     const b = e.target.closest('[data-act="optPick"]');
     if(b) genShowOption(parseInt(b.dataset.i, 10));
   });
   window.addEventListener('resize', () => {
     if(!f.classList.contains('open')) return;
-    if(f.classList.contains('force-land') && window.innerWidth > window.innerHeight) f.classList.remove('force-land');
+    const portrait = window.innerHeight > window.innerWidth;
+    if(!portrait) f.classList.remove('force-land');          // girou o aparelho: já está na horizontal de verdade
+    else if(genFullAuto) f.classList.add('force-land');      // voltou para em pé: deita a escala de novo
     genFullLayout();
   });
 })();
