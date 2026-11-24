@@ -4854,16 +4854,12 @@ function genRenderChoose(animate){
   const cands = genAppendCandidates();
   const cls = animate ? (gen.dir > 0 ? 'anim-fwd' : 'anim-back') : '';
   document.getElementById('genBody').innerHTML = `<div class="gen-step ${cls}">
-    <p class="gen-lead">Já existe escala em <b>${capFirst(genMonthName())} de ${gen.year}</b>.</p>
     <div class="gen-choice ${cands.length ? '' : 'disabled'}" data-act="chooseAppend">
       <div class="ct">➕ Acrescentar pessoa à escala atual</div>
-      <div class="cd">${cands.length
-        ? 'Mantém tudo que já está feito e encaixa só quem entrou. Ninguém que já está na escala é alterado.'
-        : 'Todo mundo já tem folgas neste mês. Cadastre quem entrou na aba Equipe para usar esta opção.'}</div>
+      ${cands.length ? '' : '<div class="cd">Todo mundo já tem folgas neste mês.</div>'}
     </div>
     <div class="gen-choice" data-act="chooseFull">
       <div class="ct">🔄 Gerar do zero</div>
-      <div class="cd">Cria a escala do mês inteira de novo. Ao aplicar, substitui as folgas atuais.</div>
     </div>
   </div>`;
   genRenderFooter();
