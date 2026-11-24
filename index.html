@@ -2084,6 +2084,7 @@ function renderCoverageConflictBanner(){
   el.innerHTML = '';
   const groups = allCoverageGroups();
   if(!isMonthPublished(calYear, calMonth) || !groups.length) return;
+  const rosterIds = new Set(rosterPeopleFor(calYear, calMonth).map(p => p.id));
   const daysInMonth = new Date(calYear, calMonth+1, 0).getDate();
   const todayStr = iso(todayObj.getFullYear(), todayObj.getMonth(), todayObj.getDate());
   const items = [];
@@ -2091,7 +2092,10 @@ function renderCoverageConflictBanner(){
     const dateStr = iso(calYear, calMonth, d);
     if(dateStr < todayStr) continue; // dia já passou — não mostra mais o aviso
     groups.forEach(members=>{
-      const offTogether = members.filter(pid => isOff(pid, dateStr));
+      // só conta quem está na escala deste mês (ex.: se um operador não entrou, não há conflito)
+      const inRoster = members.filter(pid => rosterIds.has(pid));
+      if(inRoster.length < 2) return;
+      const offTogether = inRoster.filter(pid => isOff(pid, dateStr));
       if(offTogether.length >= 2){
         items.push(`${joinNamesPT(offTogether)} estão de folga no dia ${formatDateBR(dateStr)}`);
       }
