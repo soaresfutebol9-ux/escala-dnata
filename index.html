@@ -711,13 +711,16 @@
   .danger-link{
     color: var(--c-falta);
     background: none;
-    border: none;
-    font-size: 13px;
+    border: 1px solid rgba(248,113,113,0.45);
+    border-radius: 12px;
+    font-size: 14px;
     font-weight: 600;
     cursor: pointer;
-    padding: 8px;
-    margin-top: 4px;
+    width: 100%;
+    padding: 12px;
+    margin-top: 28px; /* bem separado de Cancelar/Salvar pra não tocar sem querer */
   }
+  .danger-link:active{ background: rgba(248,113,113,0.12); }
 
   /* Off-days mini calendar inside modal */
   .off-days-head{
@@ -803,6 +806,8 @@
   .mini-day.empty{ background: none; border: none; cursor: default; }
   .mini-day.off{ background: rgba(100,116,139,0.35); border-color: var(--c-folga); color: var(--text-dim); text-decoration: none; }
   .mini-day.violation{ border-color: var(--c-falta); background: rgba(248,113,113,0.14); color: var(--c-falta); }
+  .mini-day.off.conflict{ border-color: var(--c-falta); background: rgba(248,113,113,0.18); }
+  .mini-day.off.conflict .mfl{ color: var(--c-falta); }
   .mini-day.requested{
     border-color: var(--c-desejada);
     border-width: 2px;
@@ -1208,6 +1213,10 @@
   .gen-table tr.foot td{ background: var(--surface-2); font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 11.5px; height: 26px; color: var(--text-dim); }
   .gen-table tr.foot td.nm{ background: var(--surface-2); font-family: 'Inter', sans-serif; font-size: 11px; }
   .gen-table tr.foot td.over{ color: var(--c-falta); }
+  .gen-table tr.foot.clean td{ background: rgba(45,212,191,0.10); color: var(--c-limpeza); font-size: 12.5px; }
+  .gen-table tr.foot.clean td.nm{ background: rgba(45,212,191,0.16); color: var(--c-limpeza); font-weight: 600; }
+  .gen-table tr.foot.clean td.cl-zero{ opacity: .45; font-weight: 500; }
+  .gen-table tr.foot.clean td.cl-low{ color: var(--c-falta); }
   .gen-legend{ display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 12px; font-size: 11.5px; color: var(--text-dim); }
   .gen-legend span{ display: inline-flex; align-items: center; gap: 6px; }
   .gen-legend i{ width: 12px; height: 12px; border-radius: 4px; display: inline-block; }
@@ -2016,9 +2025,20 @@ function personName(personId){
   const p = state.people.find(p=>p.id===personId);
   return p ? p.name : 'Essa pessoa';
 }
+// Impede marcar uma folga que quebra uma restrição (ex.: os dois operadores juntos).
+// Devolve true se bloqueou (e já avisou na tela).
+function blockIfCoverageConflict(personId, dateStr){
+  const clash = coverageConflictsFor(personId, dateStr);
+  if(!clash.length) return false;
+  showToast(`Não pode: ${joinNamesPT(clash)} já ${clash.length > 1 ? 'estão' : 'está'} de folga em ${formatDateBR(dateStr)} (restrição de folga).`);
+  return true;
+}
 // Retorna os IDs dos parceiros de dupla que também estão de folga em dateStr.
 function coverageConflictsFor(personId, dateStr){
-  return pairPartnersOf(personId).filter(pid => isOff(pid, dateStr));
+  // só vale para quem está na escala do mês desse dia
+  const y = parseInt(dateStr.slice(0,4),10), m = parseInt(dateStr.slice(5,7),10) - 1;
+  const rosterIds = new Set(rosterPeopleFor(y, m).map(p => p.id));
+  return pairPartnersOf(personId).filter(pid => rosterIds.has(pid) && isOff(pid, dateStr));
 }
 
 
@@ -2849,6 +2869,7 @@ function renderMiniCal(){
   const daysInMonth = new Date(miniYear, miniMonth+1, 0).getDate();
   let html = '';
   let violationCount = 0;
+  const conflictMsgs = [];
   for(let i=0;i<firstDow;i++) html += `<div class="mini-day empty"></div>`;
   const offArr = state.offDays[offDaysPersonId] || [];
   const faSet = (()=>{
@@ -2872,21 +2893,28 @@ function renderMiniCal(){
         if(violation) violationCount++;
       }
     }
+    const conflictIds = off ? coverageConflictsFor(offDaysPersonId, dateStr) : [];
+    const conflict = conflictIds.length > 0;
+    if(conflict) conflictMsgs.push(`dia ${d}: ${joinNamesPT(conflictIds)} também folga${conflictIds.length > 1 ? 'm' : ''}`);
     const noToggle = offDaysMode === 'off' && (off ? atMin : atMax);
     const code = off ? null : getShiftCode(offDaysPersonId, dateStr);
     const isFa = off && faSet.has(d - 1);
     const badge = off ? (isFa ? 'FA' : 'F') : (code || '');
-    const title = requested ? `Folga desejada — solicitada pelo funcionário`
+    const title = conflict ? `Conflito de restrição: ${joinNamesPT(conflictIds)} também ${conflictIds.length > 1 ? 'estão' : 'está'} de folga`
+      : requested ? `Folga desejada — solicitada pelo funcionário`
       : violation ? `Dia além do limite de ${MAX_CONSECUTIVE_WORK_DAYS} dias seguidos`
       : (noToggle ? (off ? `Mínimo de ${MIN_OFF_DAYS_PER_MONTH} folgas no mês` : `Máximo de ${MAX_OFF_DAYS_PER_MONTH} folgas no mês`) : '');
-    html += `<div class="mini-day ${off?'off':''} ${requested?'requested':''} ${violation?'violation':''} ${noToggle?'no-toggle':''} ${code?'hascode':''} ${isFa?'fa':''}" data-date="${dateStr}" title="${code ? 'Turno ' + code : (isFa ? 'FA — folga agrupada' : title)}"><span class="mnum">${d}</span>${badge ? `<span class="${off ? 'mfl' : 'mcode'}">${badge}</span>` : ''}</div>`;
+    html += `<div class="mini-day ${off?'off':''} ${requested?'requested':''} ${violation?'violation':''} ${conflict?'conflict':''} ${noToggle?'no-toggle':''} ${code?'hascode':''} ${isFa?'fa':''}" data-date="${dateStr}" title="${conflict ? title : (code ? 'Turno ' + code : (isFa ? 'FA — folga agrupada' : title))}"><span class="mnum">${d}</span>${badge ? `<span class="${off ? 'mfl' : 'mcode'}">${badge}</span>` : ''}</div>`;
   }
   grid.innerHTML = html;
 
 
   const legendEl = document.getElementById('miniViolationLegend');
-  if(violationCount){
-    legendEl.querySelector('.mini-legend-text').textContent = `${violationCount} dia${violationCount>1?'s':''} de trabalho além do limite de ${MAX_CONSECUTIVE_WORK_DAYS} seguidos (em vermelho)`;
+  if(violationCount || conflictMsgs.length){
+    const parts = [];
+    if(violationCount) parts.push(`${violationCount} dia${violationCount>1?'s':''} de trabalho além do limite de ${MAX_CONSECUTIVE_WORK_DAYS} seguidos (em vermelho)`);
+    if(conflictMsgs.length) parts.push(`Conflito de restrição (em vermelho): ${conflictMsgs.join('; ')}`);
+    legendEl.querySelector('.mini-legend-text').textContent = parts.join(' · ');
     legendEl.style.display = 'flex';
   }else{
     legendEl.style.display = 'none';
@@ -2946,6 +2974,7 @@ function renderMiniCal(){
         showToast(`Mínimo de ${MIN_OFF_DAYS_PER_MONTH} folgas neste mês. Não é possível remover mais uma.`);
         return;
       }
+      if(!wasOff && blockIfCoverageConflict(offDaysPersonId, dateStr)) return;
       toggleOffDay(offDaysPersonId, dateStr);
       renderMiniCal();
       if(wasOff){
@@ -2996,6 +3025,7 @@ function handleLongPress(dateStr){
     showToast(`Máximo de ${MAX_OFF_DAYS_PER_MONTH} folgas neste mês. Remova outra antes de adicionar.`);
     return;
   }
+  if(blockIfCoverageConflict(personId, dateStr)) return;
   if(confirm(`Marcar ${dateLabel} como folga desejada?`)){
     toggleOffDay(personId, dateStr);
     markRequestedOff(personId, dateStr);
@@ -4635,6 +4665,17 @@ function genTableHtml(cfg, sol){
   let foot = `<tr class="foot"><td class="nm">Folgam</td>`;
   for(let d = 0; d < D; d++) foot += `<td class="${sol.load[d] > cfg.M ? 'over' : ''}">${sol.load[d]}</td>`;
   foot += `<td></td></tr>`;
+  // linha extra: quantas pessoas da Limpeza estão de folga em cada dia
+  const cIdx = cfg.cleanIdx || [];
+  if(cIdx.length){
+    foot += `<tr class="foot clean"><td class="nm">Folga limp.</td>`;
+    for(let d = 0; d < D; d++){
+      const n = cIdx.reduce((acc, i) => acc + (sol.offs[i][d] ? 1 : 0), 0);
+      const low = (cIdx.length - n) < GEN_CLEAN_MIN;
+      foot += `<td class="${n ? 'cl-on' : 'cl-zero'} ${low ? 'cl-low' : ''}">${n}</td>`;
+    }
+    foot += `<td></td></tr>`;
+  }
   return `<table class="gen-table"><thead><tr>${head}</tr></thead><tbody>${rows}${foot}</tbody></table>`;
 }
 function genLegendHtml(){
