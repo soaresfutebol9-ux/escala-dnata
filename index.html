@@ -1225,7 +1225,8 @@
   .gen-table tr.foot td.nm{ background: var(--surface-2); font-family: 'Inter', sans-serif; font-size: 11px; }
   .gen-table tr.foot td.over{ color: var(--c-falta); }
   .gen-table tr.foot.clean td{ background: rgba(45,212,191,0.10); color: var(--c-limpeza); font-size: 12.5px; }
-  .gen-table tr.foot.clean td.nm{ background: rgba(45,212,191,0.16); color: var(--c-limpeza); font-weight: 600; }
+  /* fundo opaco (camada translúcida sobre a cor da superfície): os números que rolam por baixo não aparecem por cima do nome */
+  .gen-table tr.foot.clean td.nm{ background: linear-gradient(rgba(45,212,191,0.16), rgba(45,212,191,0.16)), var(--surface-2); color: var(--c-limpeza); font-weight: 600; }
   .gen-table tr.foot.clean td.cl-zero{ opacity: .45; font-weight: 500; }
   .gen-table tr.foot.clean td.cl-low{ color: var(--c-falta); }
   .gen-legend{ display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 12px; font-size: 11.5px; color: var(--text-dim); }
@@ -2496,20 +2497,8 @@ document.querySelectorAll('nav.tabs button').forEach(btn=>{
   });
 });
 
-// Swipe left/right anywhere in the main content area moves between tabs
-// (Calendário ↔ Escala ↔ Equipe). Doesn't wrap past the first/last tab.
-attachSwipeNav(document.querySelector('main'),
-  ()=>{
-    const currentTab = document.querySelector('nav.tabs button.active').dataset.tab;
-    const idx = TAB_ORDER.indexOf(currentTab);
-    if(idx < TAB_ORDER.length - 1) animateTabChange(TAB_ORDER[idx+1], 'next');
-  },
-  ()=>{
-    const currentTab = document.querySelector('nav.tabs button.active').dataset.tab;
-    const idx = TAB_ORDER.indexOf(currentTab);
-    if(idx > 0) animateTabChange(TAB_ORDER[idx-1], 'prev');
-  }
-);
+// Swipe-to-change-tab gesture removed on purpose: it caused accidental tab changes
+// while interacting with the Escala. Tabs change only by tapping the tab buttons.
 
 // ---------- Team view ----------
 function renderEscalaList(){
@@ -3897,7 +3886,16 @@ function genSolveOnce(cfg, rng){
       const wt = (cfg.append || kindOf[i] === 'op') ? 400 : 10;
       let c = wt * (2 * lv + 1); // equilibra a carga entre os dias
       if(load[d] + 1 > cfg.M) c += 50000;             // passou do limite por dia
-      for(const g of personGroups[i]) c += 60000 * groupCnt[g][d]; // folgaria junto de alguém do grupo
+      for(const g of personGroups[i]){
+        c += 60000 * groupCnt[g][d]; // folgaria junto de alguém do grupo
+        // Espaça as folgas do grupo: evita colar na folga de outra pessoa do mesmo grupo,
+        // para sobrar o menor número possível de dias sem ninguém do grupo de folga.
+        for(let k = 1; k <= 2; k++){
+          const pen = k === 1 ? 1500 : 600;
+          if(d - k >= 0 && groupCnt[g][d - k] > 0) c += pen;
+          if(d + k < D && groupCnt[g][d + k] > 0) c += pen;
+        }
+      }
       if(isClean[i]){
         const allowed = Math.max(0, nClean - GEN_CLEAN_MIN);
         const over = cleanOff[d] + 1 - allowed;
@@ -3950,7 +3948,23 @@ function genSolveOnce(cfg, rng){
   }
   let clash = 0;
   if(cfg.softGroups) genGroupClashes(cfg, offs).forEach(c => { clash += c.days.length; });
-  return { offs, issues, clash, load: Array.from(load), cleanOff: Array.from(cleanOff), score: issues.length * 100000 + clash * 20000 + balance + cleanPen };
+  // Cobertura das restrições: o ideal é sempre ter alguém do grupo de folga. Só conta como
+  // falha o dia sem ninguém que dava para evitar (se o grupo tem menos folgas que dias do mês,
+  // alguns dias vazios são inevitáveis). Dias vazios seguidos também pesam, para ficarem espalhados.
+  let coverPen = 0;
+  cfg.groups.forEach(g => {
+    const cover = new Array(D).fill(false);
+    let total = 0;
+    g.forEach(i => { const a = offs[i]; if(!a) return; for(let d = 0; d < D; d++) if(a[d]){ total++; cover[d] = true; } });
+    const zeros = cover.filter(v => !v).length;
+    coverPen += 8000 * Math.max(0, zeros - Math.max(0, D - total));
+    let run = 0;
+    for(let d = 0; d < D; d++){
+      if(!cover[d]) run++; else { coverPen += 150 * run * run; run = 0; }
+    }
+    coverPen += 150 * run * run;
+  });
+  return { offs, issues, clash, load: Array.from(load), cleanOff: Array.from(cleanOff), score: issues.length * 100000 + clash * 20000 + balance + cleanPen + coverPen };
 }
 
 function genDiffCount(a, b){
