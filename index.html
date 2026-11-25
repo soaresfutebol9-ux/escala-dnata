@@ -1164,6 +1164,10 @@
     animation: genRowIn 0.3s ease;
   }
   .gen-verdict.ok{ background: rgba(52,211,153,0.12); border: 1px solid rgba(52,211,153,0.4); }
+  .gen-verdict.alert{ background: rgba(248,113,113,0.10); border: 1px solid rgba(248,113,113,0.45); }
+  .gen-verdict .vgrp{ margin-top: 10px; font-size: 13px; line-height: 1.5; }
+  .gen-verdict .vdays{ margin: 4px 0 6px; padding-left: 10px; font-size: 12.5px; color: var(--text-dim); }
+  .gen-verdict .vwhy, .gen-verdict .vfix{ font-size: 12.5px; color: var(--text-dim); margin-top: 3px; }
   .gen-verdict.warn{ background: rgba(251,191,36,0.10); border: 1px solid rgba(251,191,36,0.35); }
   .gen-verdict .vicon{ font-size: 20px; line-height: 1.2; animation: genPopIcon 0.45s cubic-bezier(.2,1.4,.4,1); }
   @keyframes genPopIcon{ from{ transform: scale(0); } to{ transform: scale(1); } }
@@ -1209,6 +1213,13 @@
   }
   .gen-cell.req{ background: var(--c-desejada); color: #0F1720; }
   .gen-cell.fa{ background: var(--accent); color: #0F1720; }
+  .gen-cell.sel{ outline: 2px solid #fff; outline-offset: 1px; }
+  .gen-full-host .gen-table td.c[data-p]{ cursor: pointer; }
+  .gen-full-msg{
+    display:none; flex-shrink:0; margin:0 14px 8px; padding:8px 10px; font-size:12.5px; font-weight:600; line-height:1.4;
+    color:#F87171; background:rgba(248,113,113,.10); border:1px solid rgba(248,113,113,.4); border-radius:10px;
+  }
+  .gen-full-msg.show{ display:block; }
   @keyframes genCellIn{ from{ opacity: 0; transform: scale(0.4); } to{ opacity: 1; transform: none; } }
   .gen-table tr.foot td{ background: var(--surface-2); font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 11.5px; height: 26px; color: var(--text-dim); }
   .gen-table tr.foot td.nm{ background: var(--surface-2); font-family: 'Inter', sans-serif; font-size: 11px; }
@@ -1240,6 +1251,9 @@
     font-family:'Inter',sans-serif; font-size:12.5px; font-weight:700; cursor:pointer;
     transition:border-color .18s ease, transform .12s ease;
   }
+  .gen-expand-btn.sq{ width:34px; height:34px; padding:0; display:inline-flex; align-items:center; justify-content:center; font-size:16px; line-height:1; }
+  .cal-schedule{ margin-top:16px; }
+  .cal-sched-bar{ display:flex; justify-content:flex-end; margin:0 0 8px; }
   .gen-expand-btn:hover{ border-color:var(--accent); }
   .gen-expand-btn:active{ transform:scale(.95); }
   .gen-opt-note{ font-size:12px; color:var(--text-faint); margin:-2px 0 10px; line-height:1.4; }
@@ -1348,6 +1362,7 @@
       <div class="cal-grid" id="calGrid"></div>
     </div>
     <div id="coverageConflictBanner"></div>
+    <div class="cal-schedule" id="calSchedule"></div>
   </div>
 
   <!-- ESCALA VIEW -->
@@ -1355,7 +1370,7 @@
     <input type="file" id="importPdfInput" accept="application/pdf" style="display:none;">
     <div class="btn-row">
       <button class="btn-secondary" id="importPdfBtn">📄 Importar PDF</button>
-      <button class="btn-secondary" id="exportPdfBtn">⬇️ Exportar PDF</button>
+      <button class="btn-secondary" id="exportXlsxBtn">📊 Exportar Excel</button>
     </div>
     <button class="btn-magic block" id="genOpenBtn">✨ Gerar escala</button>
     <div class="escala-month-bar">
@@ -1520,7 +1535,7 @@
         </div>
         <button class="icon-btn-sm" id="genCloseBtn" title="Fechar">✕</button>
       </div>
-      <div class="gen-progress" id="genProgress"><span></span><span></span><span></span><span></span><span></span><span></span></div>
+      <div class="gen-progress" id="genProgress"><span></span><span></span><span></span><span></span><span></span></div>
     </div>
     <div class="gen-body" id="genBody"></div>
     <div class="gen-foot" id="genFoot"></div>
@@ -1537,6 +1552,7 @@
       <button class="icon-btn-sm" id="genFullClose" title="Fechar" aria-label="Fechar">✕</button>
     </div>
     <div class="gen-full-hint" id="genFullHint">🔄 Gire o celular para ver a escala na horizontal</div>
+    <div class="gen-full-msg" id="genFullMsg"></div>
     <div class="gen-opt-host gen-full-host" id="genFullHost"></div>
   </div>
 </div>
@@ -2043,6 +2059,7 @@ function coverageConflictsFor(personId, dateStr){
 
 
 function renderCalendar(){
+  renderCalSchedule();
   document.getElementById('monthLabel').textContent = `${capFirst(MONTHS[calMonth])} de ${calYear}`;
   const grid = document.getElementById('calGrid');
 
@@ -3545,7 +3562,8 @@ function genDayInfo(year, month){
 // FA = 2 folgas seguidas em sáb+dom ou dom+seg. O dia da FA é o SÁBADO (sáb+dom) ou a
 // SEGUNDA (dom+seg). Em sáb+dom, o sábado (FA) já zera a contagem de dias seguidos.
 // Em dom+seg, o domingo ainda conta na sequência e a segunda (FA) zera. Fora da FA,
-// ninguém folga 2 dias seguidos.
+// ninguém folga 2 dias seguidos. Exceção: se um dos dois dias é um dia específico pedido, pode.
+// Nunca 3 folgas seguidas (o máximo é 2).
 // relax: 0 = todas as regras; 1 = (sem uso); 2 = solta a regra do domingo;
 // 3 = FA deixa de ser obrigatória; 4 = permite folgas coladas fora da FA (com custo);
 // 5 = permite 1 dia seguido a mais. Retorna array de booleanos (true = folga) ou null.
@@ -3559,9 +3577,9 @@ function genBestPattern(P, cfg, costOff, relax){
   const faEnabled = P.faMode === 'must';
   const mustEnd = faEnabled && relax < 3;
   const adjOk = relax >= 4;
-  const O = K + 1, R = W + 1, S = maxSun + 1, T = SW + 1, F = 3, A = faEnabled ? 2 : 1;
+  const O = K + 1, R = W + 1, S = maxSun + 1, T = SW + 1, F = 4, A = faEnabled ? 2 : 1;
   // índice do estado: o (folgas), r (dias seguidos), s (domingos de folga), t (domingos seguidos
-  // trabalhados), f (0 = ontem trabalhou, 1 = ontem folga comum, 2 = ontem foi o 1º dia da FA), a (FA já usada)
+  // trabalhados), f (0 = ontem trabalhou, 1 = ontem folga solta, 2 = ontem foi o 1º dia da FA, 3 = ontem fechou um par de folgas), a (FA já usada)
   const sF = A, sT = F * A, sS = T * sT, sR = S * sS, sO = R * sR;
   const size = O * sO;
   const need = (D + 1) * size;
@@ -3583,14 +3601,22 @@ function genBestPattern(P, cfg, costOff, relax){
     const ns = (sunRule && isSun) ? s + 1 : s;
     const nt = (sunRule && isSun) ? 0 : t;
     res[0] = GEN_INF; res[2] = GEN_INF; res[4] = GEN_INF;
-    // folga comum (ou 2º dia da FA, quando f === 2)
+    // folga comum (ou 2º dia da FA, quando f === 2). Nunca 3 folgas seguidas: o máximo são 2,
+    // e o par só vale se for FA ou se um dos dois dias for um dia específico pedido.
+    // f: 0 = ontem trabalhou, 1 = ontem folga solta, 2 = ontem 1º dia da FA, 3 = ontem fechou um par de folgas
     if(o < K && sunOffOk){
-      let ok = false, pen = 0;
-      if(f === 0 || f === 2) ok = true;
-      else if(forced && d > 0 && P.forced[d-1]) ok = true;      // pedidos/fixas coladas: o usuário quis assim
-      else if(adjOk){ ok = true; pen = 150; }
+      let ok = false, pen = 0, nf = 1;
+      if(f === 0) ok = true;
+      else if(f === 2){ ok = true; nf = 3; }
+      else if(f === 1){
+        if(forced && d > 0 && P.forced[d-1]){ ok = true; nf = 3; }                 // pedidos colados: o usuário quis assim
+        else if(forced || (d > 0 && P.forced[d-1])){ ok = true; pen = 30; nf = 3; } // exceção: um dos dois é dia específico
+        else if(adjOk){ ok = true; pen = 150; nf = 3; }
+      }else if(f === 3){
+        if(forced && d > 1 && P.forced[d-1] && P.forced[d-2]){ ok = true; nf = 3; } // sequência toda pedida pelo usuário
+      }
       if(ok){
-        const idx = (o+1)*sO + 0*sR + ns*sS + nt*sT + 1*sF + a;
+        const idx = (o+1)*sO + 0*sR + ns*sS + nt*sT + nf*sF + a;
         const v = V[nxt + idx];
         if(v < GEN_INF){ res[0] = costOff[d] + pen + v; res[1] = idx; }
       }
@@ -3713,9 +3739,16 @@ function genValidate(cfg, offs){
       else { run++; if(run > cfg.W){ issues.push(`${P.name}: passa de ${cfg.W} dias seguidos (dia ${d+1+s})`); break; } }
     }
 
+    // nunca 3 folgas seguidas (só se os 3 dias foram pedidos)
+    for(let d = 0; d < DD - 2; d++){
+      if(a[d] && a[d+1] && a[d+2] && !(forced[d] && forced[d+1] && forced[d+2])){
+        issues.push(`${P.name}: 3 folgas seguidas nos dias ${d+1+s} a ${d+3+s}`);
+        break;
+      }
+    }
     // folgas coladas fora da FA
     for(let d = 0; d < DD - 1; d++){
-      if(a[d] && a[d+1] && !isFaFirst[d] && !(forced[d] && forced[d+1]) && !(d > 0 && isFaFirst[d-1])){
+      if(a[d] && a[d+1] && !isFaFirst[d] && !(forced[d] || forced[d+1]) && !(d > 0 && isFaFirst[d-1])){
         issues.push(`${P.name}: folgas coladas nos dias ${d+1+s} e ${d+2+s} fora de uma FA`);
         break;
       }
@@ -3743,7 +3776,7 @@ function genValidate(cfg, offs){
     for(let i = 0; i < offs.length; i++) if(offs[i][d]){ n++; if(!cfg.people[i].frozen) anyNew = true; }
     if(n > cfg.M && anyNew) issues.push(`Dia ${d+1}: ${n} pessoas de folga (limite ${cfg.M})`);
   }
-  cfg.groups.forEach(g => {
+  (cfg.softGroups ? [] : cfg.groups).forEach(g => {
     for(let d = 0; d < D; d++){
       const together = g.filter(i => offs[i][d]);
       if(together.length >= 2 && together.some(i => !cfg.people[i].frozen)){
@@ -3752,6 +3785,37 @@ function genValidate(cfg, offs){
     }
   });
   return issues;
+}
+
+// Dias em que pessoas de uma mesma restrição folgam juntas: [{ names, days: [{ day, who }] }]
+function genGroupClashes(cfg, offs){
+  const out = [];
+  cfg.groups.forEach(g => {
+    const days = [];
+    for(let d = 0; d < cfg.D; d++){
+      const tg = g.filter(i => offs[i][d]);
+      if(tg.length >= 2 && tg.some(i => !cfg.people[i].frozen)) days.push({ day: d + 1, who: tg.map(i => cfg.people[i].name) });
+    }
+    if(days.length) out.push({ g, names: g.map(i => cfg.people[i].name), days });
+  });
+  return out;
+}
+
+function genClashExplain(cfg, g){
+  const r = genGroupProblems(cfg, g);
+  const need = g.reduce((sum, i) => sum + cfg.people[i].K, 0);
+  if(need > cfg.D) return {
+    why: `juntas, essas ${g.length} pessoas precisam de ${need} folgas e o mês só tem ${cfg.D} dias. Não tem como cada uma folgar num dia diferente.`,
+    fix: 'Diminua as folgas por pessoa ou tire alguém dessa restrição.'
+  };
+  if(r.length) return {
+    why: `${r[0]}.`,
+    fix: 'Mude um dos pedidos de folga ou tire alguém dessa restrição.'
+  };
+  return {
+    why: 'as outras regras (limite de pessoas de folga por dia, FA, domingo e dias seguidos de trabalho) não deixaram espaço para separar todo mundo.',
+    fix: 'Aumente o limite de pessoas de folga por dia no passo “Regras”, ou tire alguém dessa restrição.'
+  };
 }
 
 const GEN_MAX_WORK = 5; // regra fixa: no máximo 5 dias seguidos trabalhando
@@ -3884,7 +3948,9 @@ function genSolveOnce(cfg, rng){
       else if(avail > GEN_CLEAN_MIN) cleanPen += 40 * (avail - GEN_CLEAN_MIN);
     }
   }
-  return { offs, issues, load: Array.from(load), cleanOff: Array.from(cleanOff), score: issues.length * 100000 + balance + cleanPen };
+  let clash = 0;
+  if(cfg.softGroups) genGroupClashes(cfg, offs).forEach(c => { clash += c.days.length; });
+  return { offs, issues, clash, load: Array.from(load), cleanOff: Array.from(cleanOff), score: issues.length * 100000 + clash * 20000 + balance + cleanPen };
 }
 
 function genDiffCount(a, b){
@@ -3907,7 +3973,8 @@ async function genRun(cfg, seed, opt){
   const found = [];
   let bestBad = null, stale = 0;
   const minDiff = cfg.append ? 2 : Math.max(4, Math.round(cfg.people.length * cfg.D * 0.03));
-  for(let k = 0; k < maxTries && found.length < want; k++){
+  const soft = !!cfg.softGroups, cap = soft ? want * 3 : want;
+  for(let k = 0; k < maxTries && found.length < cap; k++){
     const sol = genSolveOnce(cfg, rng);
     if(sol.fail) break;
     if(sol.issues.length === 0){
@@ -3921,6 +3988,11 @@ async function genRun(cfg, seed, opt){
     await genTick();
   }
   found.sort((a, b) => a.score - b.score);
+  if(soft && found.length){
+    const minClash = Math.min(...found.map(f => f.clash || 0));
+    const best = found.filter(f => (f.clash || 0) === minClash).slice(0, want);
+    return { options: best, bestBad };
+  }
   return { options: found, bestBad };
 }
 
@@ -3939,14 +4011,6 @@ function genPrecheckFast(cfg){
           : `Tire pedidos dessa pessoa: o máximo permitido é 9 folgas no mês.`
       });
     }
-  });
-  cfg.groups.forEach(g => {
-    const reasons = genGroupProblems(cfg, g);
-    if(reasons.length) items.push({
-      title: `Restrição ${genJoinNames(g.map(i => cfg.people[i].name))}`,
-      detail: `não dá: ${reasons.join('; ')}.`,
-      fix: 'Remova essa restrição ou tire os pedidos de folga que batem.'
-    });
   });
   const total = N * offs;
   if(total > D * M){
@@ -4091,13 +4155,12 @@ const GEN_GROUP_ORDER = ['lider','operador','porao','limpeza','restituicao'];
 const GEN_STEPS = [
   { eyebrow: 'Pessoas',      title: 'Quem entra na escala?' },
   { eyebrow: 'Pedidos',      title: 'Algum dia específico?' },
-  { eyebrow: 'FA',           title: 'Quem teve FA mês passado?' },
   { eyebrow: 'Restrições',   title: 'Quem não pode folgar junto?' },
   { eyebrow: 'Regras',       title: 'Regras da escala' },
   { eyebrow: 'Resultado',    title: 'Escala gerada' }
 ];
 const GEN_DOW_LETTERS = ['D','S','T','Q','Q','S','S'];
-const GEN_STEP_FA = 2, GEN_STEP_RULES = 4, GEN_STEP_RESULT = 5;
+const GEN_STEP_RULES = 3, GEN_STEP_RESULT = 4;
 let gen = null; // estado do assistente (null = fechado)
 
 function genEsc(s){
@@ -4127,11 +4190,11 @@ function genSaveDraft(){
     const requests = {};
     Object.keys(gen.requests).forEach(pid => { requests[pid] = [...gen.requests[pid]]; });
     localStorage.setItem(GEN_DRAFT_KEY, JSON.stringify({
-      v: 2, savedAt: Date.now(),
+      v: 3, savedAt: Date.now(),
       step: Math.min(gen.step, GEN_STEP_RULES),
       year: gen.year, month: gen.month,
       selected: [...gen.selected], requests,
-      faLast: [...gen.faLast], savedOff: gen.savedOff,
+      savedOff: gen.savedOff,
       extraGroups: gen.extraGroups, rules: gen.rules
     }));
   }catch(e){ /* localStorage indisponível: segue sem rascunho */ }
@@ -4141,7 +4204,7 @@ function genLoadDraft(){
     const raw = localStorage.getItem(GEN_DRAFT_KEY);
     if(!raw) return null;
     const d = JSON.parse(raw);
-    if(!d || (d.v !== 1 && d.v !== 2) || !Number.isInteger(d.month) || !Number.isInteger(d.year)) return null;
+    if(!d || (d.v !== 1 && d.v !== 2 && d.v !== 3) || !Number.isInteger(d.month) || !Number.isInteger(d.year)) return null;
     return d;
   }catch(e){ return null; }
 }
@@ -4158,8 +4221,7 @@ function genRestoreDraft(d){
     if(ids.has(pid) && days.length) gen.requests[pid] = new Set(days);
   });
   gen.fixed = []; // o passo de folgas fixas foi removido: dias fixos são marcados em "Pedidos"
-  gen.faLast = new Set((d.faLast || []).filter(id => ids.has(id)));
-  gen.faRecorded = Array.isArray((state.faMonths || {})[genPrevMonthKey()]);
+  genPrefillFa();
   gen.savedOff = d.savedOff || {};
   gen.extraGroups = (d.extraGroups || []).map(g => g.filter(id => ids.has(id))).filter(g => g.length >= 2);
   const r = d.rules || {};
@@ -4171,6 +4233,7 @@ function genRestoreDraft(d){
   // rascunhos antigos (v1) tinham o passo "Folgas fixas" no meio: reajusta o número do passo
   let st = d.step || 0;
   if(d.v === 1 && st >= 2) st -= 1;
+  if(d.v < 3 && st >= 3) st -= 1; // o passo de FA foi removido
   gen.step = genClamp(st, 0, GEN_STEP_RULES);
 }
 
@@ -4221,20 +4284,18 @@ function genPrefillRequests(){
   });
 }
 
-// Quem teve FA no mês anterior: vem da escala que o próprio gerador gravou
-// naquele mês (state.faMonths). Se não houver registro, começa vazio e o usuário marca.
-function genPrevMonthKey(){
-  const d = new Date(gen.year, gen.month - 1, 1);
-  return monthKey(d.getFullYear(), d.getMonth());
-}
-function genPrevMonthName(){
-  const d = new Date(gen.year, gen.month - 1, 1);
-  return MONTHS[d.getMonth()];
-}
 function genPrefillFa(){
-  const saved = (state.faMonths || {})[genPrevMonthKey()];
-  gen.faRecorded = Array.isArray(saved);
-  gen.faLast = new Set(gen.faRecorded ? saved : []);
+  // Regra fixa: quem teve FA na escala do mês anterior fica sem FA neste mês (alternando).
+  const py = gen.month === 0 ? gen.year - 1 : gen.year, pm = (gen.month + 11) % 12;
+  const D = new Date(py, pm + 1, 0).getDate();
+  const dows = [];
+  for(let d = 1; d <= D; d++) dows.push(new Date(py, pm, d).getDay());
+  gen.faLast = new Set();
+  state.people.forEach(p => {
+    const offs = [];
+    for(let d = 1; d <= D; d++) offs.push(isOff(p.id, iso(py, pm, d)));
+    if(genFaFirstDays(offs, dows).length) gen.faLast.add(p.id);
+  });
 }
 // Quem tem folga fixa no sábado (e não no domingo) tem FA todo mês.
 function genFixedDowsByPid(){
@@ -4354,10 +4415,10 @@ function genGroupProblems(cfg, g){
     if(g.filter(i => cfg.people[i].forced[d]).length >= 2) clashDays.push(d + 1);
   }
   if(clashDays.length){
-    reasons.push(`mais de uma pessoa com folga obrigatória no dia ${clashDays.slice(0, 3).join(', ')}${clashDays.length > 3 ? '…' : ''}`);
+    reasons.push(`mais de uma pessoa pediu folga no mesmo dia (dia ${clashDays.slice(0, 3).join(', ')}${clashDays.length > 3 ? '…' : ''})`);
   }
   const need = g.reduce((sum, i) => sum + cfg.people[i].K, 0);
-  if(need > cfg.D) reasons.push(`${g.length} pessoas precisam de ${need} folgas em dias diferentes e o mês tem ${cfg.D}`);
+  if(need > cfg.D) reasons.push(`juntas, essas ${g.length} pessoas precisam de ${need} folgas e o mês só tem ${cfg.D} dias`);
   return reasons;
 }
 function genFindImpossibleGroups(cfg){
@@ -4375,7 +4436,7 @@ function genGroupWarn(ids){
     const idx = ids.map(id => cfg.people.findIndex(P => P.id === id)).filter(i => i >= 0);
     if(idx.length < 2) return '';
     const r = genGroupProblems(cfg, idx);
-    return r.length ? `<div class="gen-warn-note">⚠ Não dá: ${genEsc(r.join('; '))}.</div>` : '';
+    return r.length ? `<div class="gen-warn-note">⚠ Não vai dar para evitar que folguem juntos: ${genEsc(r.join('; '))}. A escala é gerada assim mesmo e o aviso aparece no resultado.</div>` : '';
   }catch(e){ return ''; }
 }
 function genImpossibleHtml(){
@@ -4388,7 +4449,7 @@ function genImpossibleHtml(){
 function genRenderResume(animate){
   const d = gen.resumePrompt;
   const when = new Date(d.savedAt || Date.now()).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-  const step = GEN_STEPS[genClamp(d.step || 0, 0, GEN_STEP_RULES)];
+  const step = GEN_STEPS[genClamp((d.v < 3 && (d.step || 0) >= 3) ? d.step - 1 : (d.step || 0), 0, GEN_STEP_RULES)];
   const n = (d.selected || []).filter(id => state.people.some(p => p.id === id)).length;
   document.getElementById('genModal').classList.remove('wide');
   document.getElementById('genEyebrow').textContent = 'Rascunho salvo';
@@ -4421,7 +4482,7 @@ function genRender(animate){
   document.getElementById('genEyebrow').textContent = `Passo ${gen.step + 1} de ${GEN_STEPS.length} · ${st.eyebrow}`;
   document.getElementById('genTitle').textContent = st.title;
   document.querySelectorAll('#genProgress span').forEach((el, i) => el.classList.toggle('done', i <= gen.step));
-  const builders = [genStep0, genStep1, genStepFa, genStep3, genStep4, genStep5];
+  const builders = [genStep0, genStep1, genStep3, genStep4, genStep5];
   const body = document.getElementById('genBody');
   const cls = animate ? (gen.dir > 0 ? 'anim-fwd' : 'anim-back') : '';
   body.innerHTML = `<div class="gen-step ${cls}">${builders[gen.step]()}</div>`;
@@ -4538,43 +4599,6 @@ function genStep1(){
   return html;
 }
 
-function genFaPickable(){
-  const fx = genFixedDowsByPid();
-  return genSelectedPeople().filter(p => !(fx[p.id] && (fx[p.id].has(6) || fx[p.id].has(0))));
-}
-function genFaSummaryText(){
-  const pickable = genFaPickable();
-  const sem = pickable.filter(p => gen.faLast.has(p.id)).length;
-  const fx = genFixedDowsByPid();
-  const fixedSat = genSelectedPeople().filter(p => fx[p.id] && fx[p.id].has(6) && !fx[p.id].has(0)).length;
-  const com = (pickable.length - sem) + fixedSat;
-  return `<b>${com}</b> com FA em ${genMonthName()} · <b>${sem}</b> sem FA (já tiveram)`;
-}
-function genStepFa(){
-  const fx = genFixedDowsByPid();
-  const people = genSelectedPeople();
-  const pickable = genFaPickable();
-  const fixedSat = people.filter(p => fx[p.id] && fx[p.id].has(6) && !fx[p.id].has(0));
-  let html = `<p class="gen-lead">A <b>FA</b> (folga agrupada) são 2 folgas seguidas: sábado e domingo, ou domingo e segunda. Cada pessoa tem uma por mês, alternando. Marque <b>quem teve FA em ${genPrevMonthName()}</b>: essas pessoas ficam sem FA em ${genMonthName()}.</p>`;
-  html += `<p class="mini-hint" style="margin-top:-6px;">${gen.faRecorded ? `Já marcado a partir da escala gerada em ${genPrevMonthName()}. Confira e corrija se precisar.` : `Não tenho registro de ${genPrevMonthName()}. Marque manualmente.`}</p>`;
-  const groups = {};
-  pickable.forEach(p => { const g = genGroupOf(p); (groups[g] = groups[g] || []).push(p); });
-  [...GEN_GROUP_ORDER, 'none'].forEach(gid => {
-    const list = groups[gid];
-    if(!list) return;
-    const f = fnById(gid);
-    html += `<div class="gen-group">
-      <div class="gen-group-head"><span class="dot" style="background:${f ? f.hex : '#64748B'}"></span><span class="gname">${f ? f.name : 'Sem função'}</span></div>
-      <div class="gen-pills">${list.map(p => `<button class="gen-pill ${gen.faLast.has(p.id) ? 'on' : ''}" data-act="faToggle" data-pid="${p.id}"><span class="gen-check">✓</span>${genEsc(p.name)}</button>`).join('')}</div>
-    </div>`;
-  });
-  if(fixedSat.length){
-    html += `<div class="gen-warn-note" style="color:var(--text-dim); background:var(--surface-2); border-color:var(--border);">Folga fixa no sábado, com FA todo mês: <b style="color:var(--text);">${fixedSat.map(p => genEsc(p.name)).join(', ')}</b></div>`;
-  }
-  html += `<div class="gen-summary" id="genSumFa">${genFaSummaryText()}</div>`;
-  return html;
-}
-
 // Passo 5 — restrições de "não folgar junto"
 function genStep3(){
   const ids = genSelectedPeople().map(p => p.id);
@@ -4658,7 +4682,9 @@ function genTableHtml(cfg, sol){
       const isFa = faLabel[i].includes(d);
       const cls = isFa ? 'fa' : (P.reqMask[d] ? 'req' : '');
       const delay = Math.min(i * 24 + d * 7, 600);
-      cells += `<td class="c ${(dows[d] === 0 || dows[d] === 6) ? 'wknd' : ''} ${(P.isNew && d < (P.startDay || 0)) ? 'pre' : ''}">${a[d] ? `<span class="gen-cell ${cls}" style="animation-delay:${delay}ms">${isFa ? 'FA' : 'F'}</span>` : ''}</td>`;
+      const editable = !P.frozen && !(P.isNew && d < (P.startDay || 0));
+      const isSel = !!(gen && gen.sel && gen.sel.sol === sol && gen.sel.p === i && gen.sel.d === d);
+      cells += `<td class="c ${(dows[d] === 0 || dows[d] === 6) ? 'wknd' : ''} ${(P.isNew && d < (P.startDay || 0)) ? 'pre' : ''}"${editable ? ` data-p="${i}" data-d="${d}"` : ''}>${a[d] ? `<span class="gen-cell ${cls} ${isSel ? 'sel' : ''}" style="animation-delay:${delay}ms">${isFa ? 'FA' : 'F'}</span>` : ''}</td>`;
     }
     rows += `<tr class="${P.frozen ? 'frz' : (P.isNew ? 'newp' : '')}"><td class="nm" title="${genEsc(P.name)}">${genEsc(P.name)}${P.isNew ? '<span class="gen-newtag">novo</span>' : ''}</td>${cells}<td class="tot ${(!P.frozen && !P.isNew && count < cfg.rules.offs) ? 'bad' : ''}">${count}</td></tr>`;
   });
@@ -4706,7 +4732,22 @@ function genOptionInner(i, noAnim){
       meta += `<div class="gen-opt-meta"><b>${genEsc(P.name)}</b>: folga nos dias ${daysTxt}${notes.length ? ' · ' + notes.join(', ') : ''}</div>`;
     });
   }
-  return `<div class="gen-verdict ok"><span class="vicon">✅</span><div><div class="vtitle">Todas as regras foram respeitadas</div></div></div>
+  const clashes = genGroupClashes(cfg, sol.offs);
+  const verdict = clashes.length
+    ? `<div class="gen-verdict alert"><span class="vicon">⚠️</span><div>
+        <div class="vtitle">Atenção: restrição não cumprida</div>
+        ${clashes.map(c => {
+          const ex = genClashExplain(cfg, c.g);
+          const n = c.days.length;
+          return `<div class="vgrp"><b>${genEsc(genJoinNames(c.names))}</b> não deveriam folgar no mesmo dia, mas nesta escala folgam juntos em <b>${n} dia${n > 1 ? 's' : ''}</b>:
+            <div class="vdays">${c.days.slice(0, 8).map(x => `<div>Dia ${x.day} (${DOW[cfg.dows[x.day - 1]]}): ${genEsc(genJoinNames(x.who))}</div>`).join('')}${n > 8 ? `<div>e mais ${n - 8} dia${n - 8 > 1 ? 's' : ''}</div>` : ''}</div>
+            <div class="vwhy"><b>Por quê:</b> ${genEsc(ex.why)}</div>
+            <div class="vfix"><b>Como resolver:</b> ${genEsc(ex.fix)}</div>
+          </div>`;
+        }).join('')}
+      </div></div>`
+    : `<div class="gen-verdict ok"><span class="vicon">✅</span><div><div class="vtitle">Todas as regras foram respeitadas</div></div></div>`;
+  return `${verdict}
     ${meta}
     <div class="gen-table-wrap ${noAnim ? 'noanim' : ''}">${genTableHtml(cfg, sol)}</div>${genLegendHtml()}`;
 }
@@ -4743,6 +4784,7 @@ function genStep5(){
   return `<div class="gen-opt-bar">
       <div class="gen-opt-tabs" id="genTabs">${genTabsHtml()}</div>
       <button class="gen-expand-btn" data-act="expand" aria-label="Expandir escala na horizontal">⤢ Expandir</button>
+      <button class="gen-expand-btn" data-act="expand" aria-label="Editar escala" title="Editar">✏️</button>
     </div>${note}
     <div class="gen-opt-host" id="genOptHost">${genOptionInner(r.active, !firstTime)}</div>`;
 }
@@ -4777,6 +4819,85 @@ function genShowOption(i){
   genRenderFooter();
 }
 
+
+// ---- edição manual na escala gerada (tela expandida) ----
+// Toque numa folga e depois no dia de destino (mesma pessoa): a folga muda de dia.
+// Se o novo dia quebrar alguma regra, a troca não acontece e a tela mostra o motivo.
+function genEditMsg(text){
+  const el = document.getElementById('genFullMsg');
+  if(!el) return;
+  clearTimeout(el._t);
+  el.textContent = text || '';
+  el.classList.toggle('show', !!text);
+  if(text) el._t = setTimeout(() => el.classList.remove('show'), 6000);
+}
+function genRefreshTables(){
+  const r = gen && gen.result;
+  if(!r || !r.options.length) return;
+  const keep = el => { const w = el && el.querySelector('.gen-table-wrap'); return { w: w ? w.scrollLeft : 0, t: el ? el.scrollTop : 0, l: el ? el.scrollLeft : 0 }; };
+  const restore = (el, k) => { if(!el) return; const w = el.querySelector('.gen-table-wrap'); if(w) w.scrollLeft = k.w; el.scrollTop = k.t; el.scrollLeft = k.l; };
+  const inl = document.getElementById('genOptHost');
+  if(inl){ const k = keep(inl); inl.innerHTML = genOptionInner(r.active, true); restore(inl, k); }
+  const full = document.getElementById('genFullHost');
+  if(full && document.getElementById('genFull').classList.contains('open')){
+    const k = keep(full); full.innerHTML = genFullInner(r.active); restore(full, k);
+  }
+}
+function genMoveProblems(sol, pi, from, to){
+  const cfg = gen.result.cfg;
+  const P = cfg.people[pi];
+  if(P.frozen) return [`${P.name} já estava na escala e não pode ser alterado aqui.`];
+  if(P.forced && P.forced[from]) return [`${P.name}: o dia ${from + 1} é uma folga pedida ou fixa e não pode sair do lugar.`];
+  const offs2 = sol.offs.map(a => a.slice());
+  offs2[pi][from] = false; offs2[pi][to] = true;
+  const before = genValidate(cfg, sol.offs);
+  const after = genValidate(cfg, offs2);
+  const problems = after.filter(x => !before.includes(x));
+  if(cfg.softGroups){
+    cfg.groups.forEach(g => {
+      if(!g.includes(pi)) return;
+      const tg = g.filter(i => offs2[i][to]);
+      if(tg.length >= 2) problems.push(`${genJoinNames(tg.map(i => cfg.people[i].name))} não podem folgar juntos (dia ${to + 1})`);
+    });
+  }
+  const cI = cfg.cleanIdx || [];
+  if(cI.includes(pi)){
+    const offN = arr => cI.reduce((n, k) => n + (arr[k][to] ? 1 : 0), 0);
+    const availAfter = cI.length - offN(offs2), availBefore = cI.length - offN(sol.offs);
+    if(availAfter < GEN_CLEAN_MIN && availAfter < availBefore){
+      problems.push(`Dia ${to + 1}: a Limpeza ficaria com só ${availAfter} disponíveis (mínimo ${GEN_CLEAN_MIN})`);
+    }
+  }
+  return problems;
+}
+function genCellClick(e){
+  const td = e.target.closest('td.c[data-p]');
+  if(!td || !gen || !gen.result || !gen.result.options.length) return;
+  const sol = gen.result.options[gen.result.active];
+  const pi = parseInt(td.dataset.p, 10), d = parseInt(td.dataset.d, 10);
+  const sel = (gen.sel && gen.sel.sol === sol) ? gen.sel : null;
+  if(sol.offs[pi][d]){
+    gen.sel = (sel && sel.p === pi && sel.d === d) ? null : { sol, p: pi, d };
+    genEditMsg('');
+  }else if(sel && sel.p === pi){
+    const problems = genMoveProblems(sol, pi, sel.d, d);
+    if(problems.length){
+      genEditMsg('Não é permitido: ' + problems.slice(0, 2).join(' · '));
+    }else{
+      const cI = gen.result.cfg.cleanIdx || [];
+      sol.offs[pi][sel.d] = false; sol.offs[pi][d] = true;
+      sol.load[sel.d]--; sol.load[d]++;
+      if(sol.cleanOff && cI.includes(pi)){ sol.cleanOff[sel.d]--; sol.cleanOff[d]++; }
+      gen.sel = null;
+      genEditMsg('');
+    }
+  }else{
+    gen.sel = null;
+    genEditMsg('');
+  }
+  genRefreshTables();
+}
+
 // ---- tela expandida (horizontal) ----
 function genFullTitle(){
   const r = gen.result;
@@ -4795,11 +4916,14 @@ let genFullAuto = true; // true = em pé, a escala já abre deitada; o ⟳ desli
 function genOpenFull(){
   const r = gen && gen.result;
   if(!r || !r.options.length) return;
+  openFullOverlay(`${capFirst(MONTHS[r.cfg.month])} ${r.cfg.year}`, genTabsHtml(), genFullInner(r.active));
+}
+function openFullOverlay(title, tabsHtml, innerHtml){
   const f = document.getElementById('genFull');
   if(f.classList.contains('open')) return;
-  genFullTitle();
-  document.getElementById('genFullTabs').innerHTML = genTabsHtml();
-  document.getElementById('genFullHost').innerHTML = genFullInner(r.active);
+  document.getElementById('genFullTitle').textContent = title;
+  document.getElementById('genFullTabs').innerHTML = tabsHtml;
+  document.getElementById('genFullHost').innerHTML = innerHtml;
   f.setAttribute('aria-hidden', 'false');
   genFullAuto = true;
   // celular em pé: já abre na horizontal (tela girada), sem precisar apertar nada
@@ -4811,11 +4935,50 @@ function genOpenFull(){
 function genFullClose(){
   const f = document.getElementById('genFull');
   if(!f) return;
+  if(gen) gen.sel = null;
+  genEditMsg('');
   f.classList.remove('open', 'force-land');
   f.setAttribute('aria-hidden', 'true');
   genFullLayout();
 }
 registerOverlay('genFull', genFullClose);
+
+
+// ---------- Tabela de folgas na tela principal ----------
+// Mostra, abaixo do calendário, a escala do mês de todo mundo (mesma tabela do gerador).
+// O quadradinho abre a tela expandida, com a mesma animação.
+function schedBuildTable(y, m){
+  const people = sortPeople(rosterPeopleFor(y, m));
+  if(!people.length) return null;
+  const D = new Date(y, m + 1, 0).getDate();
+  const dows = [];
+  for(let d = 1; d <= D; d++) dows.push(new Date(y, m, d).getDay());
+  const offs = people.map(p => Array.from({ length: D }, (_, d) => isOff(p.id, iso(y, m, d + 1))));
+  const load = Array.from({ length: D }, (_, d) => offs.reduce((n, a) => n + (a[d] ? 1 : 0), 0));
+  const cfg = {
+    D, dows, rules: { offs: 0 }, M: Infinity,
+    cleanIdx: people.map((p, i) => genGroupOf(p) === 'limpeza' ? i : -1).filter(i => i >= 0),
+    people: people.map(p => ({
+      id: p.id, name: p.name, frozen: false, isNew: false, startDay: 0,
+      reqMask: Array.from({ length: D }, (_, d) => isRequestedOff(p.id, iso(y, m, d + 1)))
+    }))
+  };
+  return { cfg, sol: { offs, load } };
+}
+function renderCalSchedule(){
+  const host = document.getElementById('calSchedule');
+  if(!host) return;
+  const t = isMonthPublished(calYear, calMonth) ? schedBuildTable(calYear, calMonth) : null;
+  if(!t){ host.innerHTML = ''; return; }
+  host.innerHTML = `<div class="cal-sched-bar"><button class="gen-expand-btn sq" id="calSchedExpand" aria-label="Expandir tabela de folgas" title="Expandir">⤢</button></div>
+    <div class="gen-table-wrap noanim">${genTableHtml(t.cfg, t.sol)}</div>`;
+  document.getElementById('calSchedExpand').addEventListener('click', () => {
+    const y = calYear, m = calMonth;
+    const tt = schedBuildTable(y, m);
+    if(!tt) return;
+    openFullOverlay(`${capFirst(MONTHS[m])} ${y}`, '', `<div class="gen-table-wrap noanim">${genTableHtml(tt.cfg, tt.sol)}</div>${genLegendHtml()}`);
+  });
+}
 
 // ---- acrescentar pessoa à escala já feita ----
 function genMonthHasSchedule(year, month){
@@ -4977,10 +5140,20 @@ async function genGenerate(animate){
       result = { cfg, options: [], active: 0, error: { problems } };
     }else{
       const seed = (Date.now() ^ Math.floor(Math.random() * 1e9)) >>> 0;
-      const run = await genRun(cfg, seed, { want: 3 });
+      let run = await genRun(cfg, seed, { want: 3 });
       if(!gen || token !== gen.runToken) return;
+      let usedCfg = cfg;
+      if(!run.options.length && cfg.groups && cfg.groups.length){
+        // Não dá para cumprir todas as restrições de "não folgar junto": gera assim mesmo,
+        // com o mínimo de dias juntos, e a tela avisa quais restrições ficaram incompletas.
+        genSetLoadingSub('Encaixando as restrições da melhor forma…');
+        const soft = Object.assign({}, cfg, { softGroups: true });
+        const run2 = await genRun(soft, seed + 13, { want: 3 });
+        if(!gen || token !== gen.runToken) return;
+        if(run2.options.length){ run = run2; usedCfg = soft; }
+      }
       if(run.options.length){
-        result = { cfg, options: run.options, active: 0, error: null };
+        result = { cfg: usedCfg, options: run.options, active: 0, error: null };
       }else{
         genSetLoadingSub('Analisando o que está impedindo…');
         const items = await genDiagnoseRun(cfg, run.bestBad, seed);
@@ -5139,13 +5312,6 @@ function genGo(step, dir){
       el.closest('.gen-group').querySelectorAll('.gen-pill').forEach(pill => pill.classList.toggle('on', gen.selected.has(pill.dataset.pid)));
       genRefreshStep0();
     }
-    else if(act === 'faToggle'){
-      const pid = el.dataset.pid;
-      if(gen.faLast.has(pid)) gen.faLast.delete(pid); else gen.faLast.add(pid);
-      el.classList.toggle('on', gen.faLast.has(pid));
-      const sum = document.getElementById('genSumFa');
-      if(sum) sum.innerHTML = genFaSummaryText();
-    }
     else if(act === 'toggleAcc'){
       const pid = el.dataset.pid;
       const acc = el.closest('.gen-acc');
@@ -5273,6 +5439,7 @@ function genGo(step, dir){
     genFullAuto = f.classList.toggle('force-land');
     genFullLayout();
   });
+  document.getElementById('genFullHost').addEventListener('click', genCellClick);
   f.addEventListener('click', (e) => {
     const b = e.target.closest('[data-act="optPick"]');
     if(b) genShowOption(parseInt(b.dataset.i, 10));
@@ -5286,332 +5453,6 @@ function genGo(step, dir){
   });
 })();
 
-
-// ---------- Exportar a escala do mês em PDF ----------
-// Gerador de PDF próprio (sem biblioteca externa, funciona offline). Desenha uma
-// tabela em A4 paisagem: matrícula, nome, um quadradinho por dia e total de folgas,
-// agrupada por função. O layout segue o mesmo padrão que o "Importar PDF" entende
-// (linha com os dias 1, 2, 3…, mês e ano em texto, matrícula no início de cada linha,
-// F/FA na coluna do dia), então o PDF exportado também pode ser importado de volta.
-
-// Larguras da Helvetica (AFM, unidades de 1/1000 em), caracteres 32 a 126.
-const PDF_WIDTHS_REG = [278,278,355,556,556,889,667,191,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,278,278,584,584,584,556,1015,667,667,722,722,667,611,778,722,278,500,667,556,833,722,778,667,778,722,667,611,722,667,944,667,667,611,278,278,278,469,556,333,556,556,500,556,556,278,556,556,222,222,500,222,833,556,556,556,556,333,500,278,556,500,722,500,500,500,334,260,334,584];
-const PDF_WIDTHS_BOLD = [278,333,474,556,556,889,722,238,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,333,333,584,584,584,611,975,722,722,722,722,667,611,778,722,278,556,722,611,833,722,778,667,778,722,667,611,722,667,944,667,667,611,333,278,333,584,556,333,556,611,556,611,556,333,611,611,278,278,556,278,889,611,611,611,611,389,556,333,611,556,778,556,556,500,389,280,389,584];
-
-function pdfCharWidth(ch, bold){
-  let code = ch.charCodeAt(0);
-  if(code < 32 || code > 126){
-    const base = ch.normalize('NFD').charAt(0);
-    code = base.charCodeAt(0);
-    if(code < 32 || code > 126) return 556;
-  }
-  return (bold ? PDF_WIDTHS_BOLD : PDF_WIDTHS_REG)[code - 32];
-}
-function pdfTextWidth(str, size, bold){
-  let w = 0;
-  for(const ch of String(str)) w += pdfCharWidth(ch, bold);
-  return w * size / 1000;
-}
-function pdfFit(str, maxW, size, bold){
-  str = String(str);
-  if(pdfTextWidth(str, size, bold) <= maxW) return str;
-  while(str.length > 1 && pdfTextWidth(str + '...', size, bold) > maxW) str = str.slice(0, -1);
-  return str.trimEnd() + '...';
-}
-// Texto -> bytes WinAnsi (os acentos do português cabem direto), com escape de ( ) \
-function pdfEncode(str){
-  const special = { '’':'\x92', '‘':'\x91', '“':'\x93', '”':'\x94', '–':'\x96', '—':'\x97', '•':'\x95', '…':'\x85' };
-  let out = '';
-  for(const ch of String(str)){
-    const code = ch.charCodeAt(0);
-    if(special[ch]) out += special[ch];
-    else if(code < 32 || (code >= 127 && code < 160)) out += ' ';
-    else if(code > 255) out += '?';
-    else if(ch === '(' || ch === ')' || ch === '\\') out += '\\' + ch;
-    else out += ch;
-  }
-  return out;
-}
-function pdfColor(hex){
-  const n = parseInt(hex.replace('#', ''), 16);
-  const f = v => (v / 255).toFixed(3);
-  return `${f((n >> 16) & 255)} ${f((n >> 8) & 255)} ${f(n & 255)}`;
-}
-
-function PdfDoc(W, H){ this.W = W; this.H = H; this.pages = []; this.cur = null; }
-PdfDoc.prototype.addPage = function(){ this.cur = []; this.pages.push(this.cur); };
-// coordenadas "de cima para baixo" (y = distância do topo da página)
-PdfDoc.prototype.rect = function(x, y, w, h, fill, stroke, lw){
-  const ops = [];
-  if(fill) ops.push(`${pdfColor(fill)} rg`);
-  if(stroke) ops.push(`${pdfColor(stroke)} RG ${lw || 0.4} w`);
-  ops.push(`${x.toFixed(2)} ${(this.H - y - h).toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)} re ${fill && stroke ? 'B' : (fill ? 'f' : 'S')}`);
-  this.cur.push(ops.join(' '));
-};
-PdfDoc.prototype.line = function(x1, y1, x2, y2, color, lw){
-  this.cur.push(`${pdfColor(color)} RG ${lw || 0.4} w ${x1.toFixed(2)} ${(this.H - y1).toFixed(2)} m ${x2.toFixed(2)} ${(this.H - y2).toFixed(2)} l S`);
-};
-PdfDoc.prototype.text = function(x, baseline, str, size, bold, color){
-  if(str === '' || str == null) return;
-  this.cur.push(`BT /${bold ? 'F2' : 'F1'} ${size} Tf ${pdfColor(color || '#111827')} rg ${x.toFixed(2)} ${(this.H - baseline).toFixed(2)} Td (${pdfEncode(str)}) Tj ET`);
-};
-PdfDoc.prototype.textCenter = function(cx, baseline, str, size, bold, color){
-  const w = pdfTextWidth(str, size, bold);
-  this.text(cx - w / 2, baseline, str, size, bold, color);
-};
-PdfDoc.prototype.build = function(){
-  const objs = [];
-  objs[1] = '<< /Type /Catalog /Pages 2 0 R >>';
-  objs[3] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>';
-  objs[4] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>';
-  let next = 5;
-  const pageNums = [];
-  this.pages.forEach(ops => {
-    const pageNo = next++, contentNo = next++;
-    pageNums.push(pageNo);
-    const stream = ops.join('\n');
-    objs[contentNo] = `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`;
-    objs[pageNo] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${this.W} ${this.H}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${contentNo} 0 R >>`;
-  });
-  objs[2] = `<< /Type /Pages /Kids [${pageNums.map(n => n + ' 0 R').join(' ')}] /Count ${pageNums.length} >>`;
-  let out = '%PDF-1.4\n%\xE2\xE3\xCF\xD3\n';
-  const offsets = [];
-  for(let i = 1; i < objs.length; i++){
-    offsets[i] = out.length;
-    out += `${i} 0 obj\n${objs[i]}\nendobj\n`;
-  }
-  const xref = out.length;
-  out += `xref\n0 ${objs.length}\n0000000000 65535 f \n`;
-  for(let i = 1; i < objs.length; i++) out += String(offsets[i]).padStart(10, '0') + ' 00000 n \n';
-  out += `trailer\n<< /Size ${objs.length} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
-  const bytes = new Uint8Array(out.length);
-  for(let i = 0; i < out.length; i++) bytes[i] = out.charCodeAt(i) & 255;
-  return bytes;
-};
-
-function buildEscalaPdf(year, month){
-  const roster = sortPeople(rosterPeopleFor(year, month));
-  if(!roster.length) return null;
-  const D = new Date(year, month + 1, 0).getDate();
-  const dows = [];
-  for(let d = 1; d <= D; d++) dows.push(new Date(year, month, d).getDay());
-
-  // agrupa por função (mesma ordem do assistente)
-  const groups = [];
-  [...GEN_GROUP_ORDER, 'none'].forEach(gid => {
-    const list = roster.filter(p => genGroupOf(p) === gid);
-    if(list.length) groups.push({ gid, fn: fnById(gid), list });
-  });
-
-  // dados de cada pessoa
-  const info = {};
-  roster.forEach(p => {
-    const offs = [], absent = [], codes = [];
-    for(let d = 1; d <= D; d++){
-      const ds = iso(year, month, d);
-      offs.push(isOff(p.id, ds));
-      absent.push(isAbsent(p.id, ds));
-      codes.push(offs[d - 1] ? null : getShiftCode(p.id, ds));
-    }
-    const faSet = new Set(genFaLabelDays(offs, dows));
-    const reqSet = new Set();
-    for(let d = 1; d <= D; d++) if(isRequestedOff(p.id, iso(year, month, d))) reqSet.add(d - 1);
-    info[p.id] = { offs, absent, codes, faSet, reqSet, total: offs.filter(Boolean).length };
-  });
-
-  // Limpeza disponível por dia (quem é da Limpeza e não está de folga nem faltou)
-  const limpezaList = (groups.find(g => g.gid === 'limpeza') || { list: [] }).list;
-  const limpezaAvail = [];
-  for(let d = 0; d < D; d++){
-    limpezaAvail.push(limpezaList.filter(p => !info[p.id].offs[d] && !info[p.id].absent[d] && !(info[p.id].codes[d] || '').startsWith('B')));
-  }
-  const hasLimp = limpezaList.length > 0;
-
-  const W = 841.89, H = 595.28, M = 24;
-  const hasReg = roster.some(p => (p.registration || '').trim());
-  const matrW = hasReg ? 40 : 0, nameW = 132, totW = 24;
-  const dayW = (W - 2 * M - matrW - nameW - totW) / D;
-  const dx0 = M + matrW + nameW;                 // x do primeiro dia
-  const tableW = W - 2 * M;
-
-  // altura das linhas: reduz um pouco para caber numa página só (o importador lê 1 página)
-  const nPeople = roster.length, nBands = 0; // sem faixas de função no PDF
-  const titleBlock = 46, colHeadH = 26, footRowH = 15, legendH = 24;
-  const footH = footRowH * (hasLimp ? 2 : 1);
-  const tableTop1 = M + titleBlock;
-  const avail1 = H - M - legendH - footH - (tableTop1 + colHeadH);
-  const nominal = nPeople * 16 + nBands * 13;
-  let f = 1;
-  if(nominal > avail1) f = Math.max(0.78, avail1 / nominal);
-  const pRow = 16 * f, bRow = 13 * f, fs = Math.max(0.85, f);
-
-  const doc = new PdfDoc(W, H);
-  const mesNome = capFirst(MONTHS[month]);
-  const now = new Date();
-  const stamp = `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
-
-  function drawTitle(first){
-    if(first){
-      let x = M;
-      doc.text(x, M + 15, 'Escala de folgas', 16, true, '#111827');
-      x += pdfTextWidth('Escala de folgas', 16, true) + 8;
-      doc.text(x, M + 15, '·', 16, true, '#9CA3AF');
-      x += pdfTextWidth('·', 16, true) + 8;
-      doc.text(x, M + 15, mesNome, 16, true, '#EA580C');
-      x += pdfTextWidth(mesNome, 16, true) + 10;
-      doc.text(x, M + 15, String(year), 16, false, '#EA580C'); // fonte diferente: o ano vira um item de texto separado (o importador precisa disso)
-      doc.text(M, M + 30, `${nPeople} pessoa${nPeople > 1 ? 's' : ''} na escala · gerado em ${stamp}`, 8.5, false, '#6B7280');
-    }else{
-      doc.text(M, M + 10, `Escala de folgas · ${mesNome} ${year} (continuação)`, 10, true, '#111827');
-    }
-  }
-  function drawColHeader(y){
-    doc.rect(M, y, tableW, colHeadH, '#E5E7EB');
-    if(hasReg) doc.text(M + 3, y + 16, 'Matr.', 7.5, true, '#374151');
-    doc.text(M + matrW + 3, y + 16, 'Nome', 7.5, true, '#374151');
-    for(let d = 0; d < D; d++){
-      const x = dx0 + d * dayW;
-      if(dows[d] === 0 || dows[d] === 6) doc.rect(x, y, dayW, colHeadH, '#FDDCC5');
-      doc.textCenter(x + dayW / 2, y + 12, String(d + 1), 8, true, '#111827');
-      doc.textCenter(x + dayW / 2, y + 21, DOW[dows[d]].charAt(0).toUpperCase(), 6.5, false, '#6B7280');
-    }
-    doc.textCenter(dx0 + D * dayW + totW / 2, y + 16, 'Fol.', 7.5, true, '#374151');
-    doc.line(M, y + colHeadH, M + tableW, y + colHeadH, '#9CA3AF', 0.6);
-  }
-  function drawBand(y, g){
-    doc.rect(M, y, tableW, bRow, '#F3F4F6');
-    doc.rect(M + 3, y + (bRow - 5) / 2, 5, 5, g.fn ? g.fn.hex : '#64748B');
-    doc.text(M + 12, y + bRow / 2 + 2.6, `${g.fn ? g.fn.name : 'Sem função'} (${g.list.length})`, 7.5 * fs, true, '#374151');
-  }
-  function drawPerson(y, p){
-    const inf = info[p.id];
-    const baseline = y + pRow / 2 + 2.6 * fs;
-    if(hasReg) doc.text(M + 3, baseline, (p.registration || '').trim(), 7.5 * fs, false, '#374151');
-    doc.text(M + matrW + 3, baseline, pdfFit(p.name, nameW - 6, 8.5 * fs, false), 8.5 * fs, false, '#111827');
-    for(let d = 0; d < D; d++){
-      const x = dx0 + d * dayW;
-      let fill = null, label = '', lcolor = '#111827';
-      if(inf.offs[d]){
-        const isFa = inf.faSet.has(d);
-        fill = isFa ? '#FF6B35' : (inf.reqSet.has(d) ? '#38BDF8' : '#CBD5E1');
-        label = isFa ? 'FA' : 'F';
-      }
-      else if(inf.codes[d]){ fill = '#C4B5FD'; label = inf.codes[d]; }
-      else if(dows[d] === 0 || dows[d] === 6) fill = '#FFF4EC';
-      doc.rect(x, y, dayW, pRow, fill, '#D1D5DB', 0.3);
-      if(label){
-        const lsz = label.length > 2 ? 5.6 * fs : 7 * fs;
-        doc.text(x + (dayW - pdfTextWidth(label, lsz, true)) / 2, baseline, label, lsz, true, lcolor);
-      }
-    }
-    doc.textCenter(dx0 + D * dayW + totW / 2, baseline, String(inf.total), 8 * fs, true, '#111827');
-    doc.line(M, y + pRow, M + matrW + nameW, y + pRow, '#D1D5DB', 0.3);
-    doc.line(dx0 + D * dayW, y + pRow, M + tableW, y + pRow, '#D1D5DB', 0.3);
-  }
-  function drawFootRow(y){
-    doc.rect(M, y, tableW, footRowH, '#E5E7EB');
-    doc.text(M + 3, y + 10.5, 'Folgam', 7.5, true, '#374151');
-    let sum = 0;
-    for(let d = 0; d < D; d++){
-      let n = 0;
-      roster.forEach(p => { if(info[p.id].offs[d]) n++; });
-      sum += n;
-      doc.textCenter(dx0 + d * dayW + dayW / 2, y + 10.5, String(n), 7.5, true, '#111827');
-    }
-    doc.textCenter(dx0 + D * dayW + totW / 2, y + 10.5, String(sum), 7.5, true, '#111827');
-    if(hasLimp){
-      const y2 = y + footRowH;
-      doc.rect(M, y2, tableW, footRowH, '#CCFBF1');
-      doc.text(M + 3, y2 + 10.5, 'Limpeza disponível', 7.5, true, '#115E59');
-      for(let d = 0; d < D; d++){
-        doc.textCenter(dx0 + d * dayW + dayW / 2, y2 + 10.5, String(limpezaAvail[d].length), 7.5, true, '#115E59');
-      }
-    }
-  }
-  // Página extra: quem da Limpeza está disponível em cada dia
-  function drawLimpezaPage(){
-    doc.addPage();
-    doc.text(M, M + 16, 'Limpeza disponível por dia', 16, true, '#111827');
-    doc.text(M, M + 30, `${capFirst(MONTHS[month])} de ${year}`, 9, false, '#6B7280');
-    const rowH = Math.min(15, (H - M - 4 - (M + 42)) / D);
-    const dayColW = 48, cntW = 40;
-    let yy = M + 42;
-    for(let d = 0; d < D; d++){
-      const weekend = dows[d] === 0 || dows[d] === 6;
-      doc.rect(M, yy, W - 2 * M, rowH, weekend ? '#FFF4EC' : (d % 2 ? '#F9FAFB' : null), '#E5E7EB', 0.3);
-      const base = yy + rowH / 2 + 2.6;
-      doc.text(M + 4, base, `${d + 1}  ${DOW[dows[d]].charAt(0).toUpperCase()}`, 8, true, '#111827');
-      doc.textCenter(M + dayColW + cntW / 2, base, String(limpezaAvail[d].length), 8, true, '#115E59');
-      const names = limpezaAvail[d].map(p => p.name).join(', ') || '—';
-      doc.text(M + dayColW + cntW + 6, base, pdfFit(names, W - 2 * M - dayColW - cntW - 10, 8, false), 8, false, '#111827');
-      yy += rowH;
-    }
-  }
-  function drawLegend(){
-    let x = M;
-    const y = H - M - 4;
-    const items = [['#CBD5E1', 'F  Folga'], ['#FF6B35', 'FA  Folga agrupada'], ['#38BDF8', 'Dia pedido'], ['#C4B5FD', 'A / B  Código de turno'], ['#FFF4EC', 'Fim de semana']];
-    items.forEach(([c, label]) => {
-      doc.rect(x, y - 7, 9, 9, c, '#9CA3AF', 0.4);
-      doc.text(x + 13, y, label, 7.5, false, '#374151');
-      x += 13 + pdfTextWidth(label, 7.5, false) + 16;
-    });
-  }
-
-  // ---- paginação ----
-  let pageIdx = 0;
-  let y;
-  function newPage(){
-    doc.addPage();
-    pageIdx++;
-    drawTitle(pageIdx === 1);
-    y = pageIdx === 1 ? tableTop1 : M + 16;
-    drawColHeader(y);
-    y += colHeadH;
-  }
-  const limit = H - M - legendH - footH;
-  newPage();
-  groups.forEach(g => {
-    g.list.forEach(p => {
-      if(y + pRow > limit) newPage();
-      drawPerson(y, p);
-      y += pRow;
-    });
-  });
-  drawFootRow(y);
-  drawLegend();
-  if(hasLimp) drawLimpezaPage();
-  doc.text(W - M - pdfTextWidth('Folgas e faltas conforme a escala do app', 7.5, false), H - M - 4, 'Folgas e faltas conforme a escala do app', 7.5, false, '#9CA3AF');
-
-  const fname = `escala-${normalizeText(MONTHS[month])}-${year}.pdf`;
-  return { bytes: doc.build(), filename: fname };
-}
-
-function downloadPdfBytes(bytes, filename){
-  const blob = new Blob([bytes], { type: 'application/pdf' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 5000);
-}
-
-function exportPdfForMonth(y, m){
-  try{
-    const res = buildEscalaPdf(y, m);
-    if(!res){
-      showToast('Ninguém está incluído na escala deste mês ainda.');
-      return;
-    }
-    downloadPdfBytes(res.bytes, res.filename);
-    showToast('PDF da escala gerado ✓');
-  }catch(err){
-    console.error('Falha ao exportar PDF:', err);
-    showToast('Não consegui gerar o PDF. Tente de novo.');
-  }
-}
 
 // Só o mês atual e o próximo (se já tiver escala) podem ser exportados.
 // Meses que já acabaram não ficam mais disponíveis.
@@ -5631,7 +5472,7 @@ function closeExportMonthModal(){
 }
 registerOverlay('exportMonthOverlay', closeExportMonthModal);
 
-document.getElementById('exportPdfBtn').addEventListener('click', ()=>{
+function openExportMonths(doExport){
   const months = exportableMonths();
   if(!months.length){
     showToast('Nenhum mês disponível para exportar: o mês atual e o próximo ainda não têm ninguém na escala.');
@@ -5645,16 +5486,310 @@ document.getElementById('exportPdfBtn').addEventListener('click', ()=>{
     btn.addEventListener('click', () => {
       const x = months[Number(btn.dataset.i)];
       requestCloseOverlay('exportMonthOverlay');
-      exportPdfForMonth(x.y, x.m);
+      doExport(x.y, x.m);
     });
   });
   document.getElementById('exportMonthOverlay').classList.add('active');
   pushOverlay('exportMonthOverlay');
-});
+}
+document.getElementById('exportXlsxBtn').addEventListener('click', ()=> openExportMonths(exportXlsxForMonth));
 document.getElementById('cancelExportMonthBtn').addEventListener('click', ()=> requestCloseOverlay('exportMonthOverlay'));
 document.getElementById('exportMonthOverlay').addEventListener('click', (e)=>{
   if(e.target.id === 'exportMonthOverlay') requestCloseOverlay('exportMonthOverlay');
 });
+
+// ---------- Exportar a escala do mês em Excel (.xlsx) ----------
+// Gerador próprio de .xlsx (zip sem compressão + XML), sem biblioteca externa, funciona offline.
+// Segue o layout da "Escala de Revezamento": cabeçalho, dias da semana, F / FA e códigos de turno.
+const XLSX_CRC = (()=>{
+  const t = new Uint32Array(256);
+  for(let n = 0; n < 256; n++){
+    let c = n;
+    for(let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+function xlsxCrc32(b){
+  let c = 0xFFFFFFFF;
+  for(let i = 0; i < b.length; i++) c = XLSX_CRC[(c ^ b[i]) & 255] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+function xlsxZip(files){
+  const enc = new TextEncoder();
+  const parts = [], central = [];
+  let offset = 0;
+  files.forEach(f => {
+    const name = enc.encode(f.name), data = enc.encode(f.data), crc = xlsxCrc32(data);
+    const lh = new DataView(new ArrayBuffer(30));
+    lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x0800, true); lh.setUint16(8, 0, true);
+    lh.setUint16(10, 0, true); lh.setUint16(12, 33, true); lh.setUint32(14, crc, true);
+    lh.setUint32(18, data.length, true); lh.setUint32(22, data.length, true);
+    lh.setUint16(26, name.length, true); lh.setUint16(28, 0, true);
+    parts.push(new Uint8Array(lh.buffer), name, data);
+    const ch = new DataView(new ArrayBuffer(46));
+    ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true); ch.setUint16(8, 0x0800, true);
+    ch.setUint16(10, 0, true); ch.setUint16(12, 0, true); ch.setUint16(14, 33, true); ch.setUint32(16, crc, true);
+    ch.setUint32(20, data.length, true); ch.setUint32(24, data.length, true);
+    ch.setUint16(28, name.length, true); ch.setUint16(30, 0, true); ch.setUint16(32, 0, true);
+    ch.setUint16(34, 0, true); ch.setUint16(36, 0, true); ch.setUint32(38, 0, true); ch.setUint32(42, offset, true);
+    central.push(new Uint8Array(ch.buffer), name);
+    offset += 30 + name.length + data.length;
+  });
+  const cdSize = central.reduce((s, p) => s + p.length, 0);
+  const end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true); end.setUint16(4, 0, true); end.setUint16(6, 0, true);
+  end.setUint16(8, files.length, true); end.setUint16(10, files.length, true);
+  end.setUint32(12, cdSize, true); end.setUint32(16, offset, true); end.setUint16(20, 0, true);
+  const all = [...parts, ...central, new Uint8Array(end.buffer)];
+  const out = new Uint8Array(all.reduce((s, p) => s + p.length, 0));
+  let o = 0;
+  all.forEach(p => { out.set(p, o); o += p.length; });
+  return out;
+}
+function xlsxEsc(s){
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function xlsxCol(n){ // 0-based -> A, B, ... AA
+  let s = '';
+  n++;
+  while(n > 0){ const r = (n - 1) % 26; s = String.fromCharCode(65 + r) + s; n = Math.floor((n - 1) / 26); }
+  return s;
+}
+
+function XlsxStyles(){
+  this.fonts = ['<font><sz val="9"/><color rgb="FF000000"/><name val="Calibri"/></font>'];
+  this.fills = ['<fill><patternFill patternType="none"/></fill>', '<fill><patternFill patternType="gray125"/></fill>'];
+  this.borders = ['<border><left/><right/><top/><bottom/><diagonal/></border>'];
+  this.xfs = ['<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'];
+  this.map = {};
+}
+XlsxStyles.prototype.get = function(o){
+  const key = JSON.stringify(o);
+  if(this.map[key] != null) return this.map[key];
+  const idx = (arr, x) => { let i = arr.indexOf(x); if(i < 0){ arr.push(x); i = arr.length - 1; } return i; };
+  const font = `<font>${o.b ? '<b/>' : ''}${o.i ? '<i/>' : ''}<sz val="${o.sz || 9}"/><color rgb="FF${o.color || '000000'}"/><name val="Calibri"/></font>`;
+  const fill = o.fill ? `<fill><patternFill patternType="solid"><fgColor rgb="FF${o.fill}"/><bgColor indexed="64"/></patternFill></fill>` : null;
+  const side = n => o.bd ? `<${n} style="thin"><color rgb="FF${o.bd}"/></${n}>` : `<${n}/>`;
+  const border = `<border>${side('left')}${side('right')}${side('top')}${side('bottom')}<diagonal/></border>`;
+  const fid = idx(this.fonts, font), flid = fill ? idx(this.fills, fill) : 0, bid = idx(this.borders, border);
+  const al = `<alignment${o.h ? ` horizontal="${o.h}"` : ''} vertical="${o.v || 'center'}"${o.rot ? ` textRotation="${o.rot}"` : ''}${o.wrap ? ' wrapText="1"' : ''}/>`;
+  this.xfs.push(`<xf numFmtId="${o.nf || 0}" fontId="${fid}" fillId="${flid}" borderId="${bid}" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1">${al}</xf>`);
+  this.map[key] = this.xfs.length - 1;
+  return this.map[key];
+};
+XlsxStyles.prototype.xml = function(){
+  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+    '<numFmts count="1"><numFmt numFmtId="164" formatCode="00"/></numFmts>' +
+    `<fonts count="${this.fonts.length}">${this.fonts.join('')}</fonts>` +
+    `<fills count="${this.fills.length}">${this.fills.join('')}</fills>` +
+    `<borders count="${this.borders.length}">${this.borders.join('')}</borders>` +
+    '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
+    `<cellXfs count="${this.xfs.length}">${this.xfs.join('')}</cellXfs>` +
+    '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>' +
+    '</styleSheet>';
+};
+
+function XlsxSheet(){ this.cells = {}; this.merges = []; this.heights = {}; this.widths = []; this.freeze = null; }
+XlsxSheet.prototype.put = function(r, c, v, s){ this.cells[r + ',' + c] = { r, c, v, s }; };
+XlsxSheet.prototype.xml = function(){
+  const rows = {};
+  Object.values(this.cells).forEach(x => { (rows[x.r] = rows[x.r] || []).push(x); });
+  const rowNums = Object.keys(rows).map(Number).sort((a, b) => a - b);
+  let sd = '';
+  rowNums.forEach(r => {
+    const ht = this.heights[r] ? ` ht="${this.heights[r]}" customHeight="1"` : '';
+    sd += `<row r="${r + 1}"${ht}>`;
+    rows[r].sort((a, b) => a.c - b.c).forEach(x => {
+      const ref = xlsxCol(x.c) + (r + 1);
+      if(x.v == null || x.v === '') sd += `<c r="${ref}" s="${x.s}"/>`;
+      else if(typeof x.v === 'number') sd += `<c r="${ref}" s="${x.s}"><v>${x.v}</v></c>`;
+      else sd += `<c r="${ref}" s="${x.s}" t="inlineStr"><is><t xml:space="preserve">${xlsxEsc(x.v)}</t></is></c>`;
+    });
+    sd += '</row>';
+  });
+  const cols = this.widths.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join('');
+  const pane = this.freeze
+    ? `<pane xSplit="${this.freeze.c}" ySplit="${this.freeze.r}" topLeftCell="${xlsxCol(this.freeze.c)}${this.freeze.r + 1}" activePane="bottomRight" state="frozen"/><selection pane="bottomRight"/>`
+    : '';
+  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+    '<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>' +
+    `<sheetViews><sheetView showGridLines="0" workbookViewId="0">${pane}</sheetView></sheetViews>` +
+    '<sheetFormatPr defaultRowHeight="15"/>' +
+    `<cols>${cols}</cols><sheetData>${sd}</sheetData>` +
+    (this.merges.length ? `<mergeCells count="${this.merges.length}">${this.merges.map(m => `<mergeCell ref="${m}"/>`).join('')}</mergeCells>` : '') +
+    '<pageMargins left="0.3" right="0.3" top="0.4" bottom="0.4" header="0.2" footer="0.2"/>' +
+    '<pageSetup paperSize="9" orientation="landscape" fitToWidth="1" fitToHeight="0"/>' +
+    '</worksheet>';
+};
+
+function buildEscalaXlsx(year, month){
+  const roster = sortPeople(rosterPeopleFor(year, month));
+  if(!roster.length) return null;
+  const D = new Date(year, month + 1, 0).getDate();
+  const dows = [];
+  for(let d = 1; d <= D; d++) dows.push(new Date(year, month, d).getDay());
+
+  const groups = [];
+  [...GEN_GROUP_ORDER, 'none'].forEach(gid => {
+    const list = roster.filter(p => genGroupOf(p) === gid);
+    if(list.length) groups.push({ gid, fn: fnById(gid), list });
+  });
+
+  const info = {};
+  roster.forEach(p => {
+    const offs = [], codes = [];
+    for(let d = 1; d <= D; d++){
+      const ds = iso(year, month, d);
+      const off = isOff(p.id, ds);
+      offs.push(off);
+      codes.push(off ? null : getShiftCode(p.id, ds));
+    }
+    info[p.id] = { offs, codes, faSet: new Set(genFaLabelDays(offs, dows)), total: offs.filter(Boolean).length };
+  });
+
+  const CARGO = { lider: 'AUXILIAR LÍDER DE RAMPA', operador: 'OPERADOR DE EQUIPAMENTOS' };
+  const DOWX = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SAB'];
+  const TEAL = '00A99D', GREEN = '0B5D4A', GREY = 'A6A6A6', PURPLE = 'B4A7D6', RED = '7B2D26', BD = 'BFBFBF';
+  const st = new XlsxStyles(), sh = new XlsxSheet();
+
+  const c0 = 8;                       // primeira coluna de dia (A..H são fixas)
+  const cF = c0 + D, cH = cF + 1, cT = cF + 2;   // folgas, horas trab., horário
+  const lastCol = cT;
+  const rng = (r1, c1, r2, c2, s) => { for(let r = r1; r <= r2; r++) for(let c = c1; c <= c2; c++) sh.put(r, c, null, s); };
+  const mg = (r1, c1, r2, c2, v, s) => {
+    rng(r1, c1, r2, c2, s);
+    sh.put(r1, c1, v, s);
+    if(r1 !== r2 || c1 !== c2) sh.merges.push(`${xlsxCol(c1)}${r1 + 1}:${xlsxCol(c2)}${r2 + 1}`);
+  };
+
+  // larguras e alturas
+  sh.widths = [10, 34, 27, 6, 7, 7, 8, 6];
+  for(let d = 0; d < D; d++) sh.widths.push(3.8);
+  sh.widths.push(6.5, 8.5, 17);
+  sh.heights[0] = 30; sh.heights[1] = 18; sh.heights[2] = 6; sh.heights[3] = 14; sh.heights[4] = 34; sh.heights[5] = 16;
+
+  // ---- cabeçalho (logo, título, base / setor / turno / mês) ----
+  mg(0, 0, 0, 2, 'dnata', st.get({ b: 1, i: 1, sz: 22, color: TEAL, h: 'left' }));
+  mg(1, 0, 1, 2, String(year), st.get({ b: 1, sz: 10, color: 'FFFFFF', fill: GREEN, h: 'right' }));
+  const bc0 = c0 + D - 16;            // as 4 caixinhas ocupam as 16 últimas colunas de dia
+  mg(0, 3, 0, bc0 - 1, 'ENDEREÇO: PRAÇA SANTOS DUMONT /100 -BOA VISTA', st.get({ b: 1, sz: 8, color: '1F6FB5', h: 'center' }));
+  mg(1, 3, 1, bc0 - 1, 'ESCALA DE REVEZAMENTO', st.get({ b: 1, sz: 14, color: '1F6FB5', h: 'center' }));
+  const boxes = [['BASE', 'BVB'], ['SETOR', 'RAMPA'], ['TURNO', 'GERAL'], ['MÊS', MONTHS[month].toUpperCase()]];
+  boxes.forEach((b, i) => {
+    const a = bc0 + i * 4, z = a + 3;
+    mg(0, a, 0, z, b[0], st.get({ b: 1, sz: 7, color: 'FFFFFF', fill: '808080', h: 'center', bd: 'FFFFFF' }));
+    const last = i === 3;
+    mg(1, a, 1, z, b[1], st.get({ b: 1, sz: 9, color: last ? 'FFFFFF' : '000000', fill: last ? GREEN : 'F2F2F2', h: 'center', bd: 'FFFFFF' }));
+  });
+
+  // ---- faixa "dias da semana" + cabeçalho das colunas ----
+  rng(3, 0, 3, lastCol, st.get({ fill: GREY }));
+  mg(3, c0, 3, c0 + D - 1, 'DIAS DA SEMANA', st.get({ b: 1, sz: 7, color: 'FFFFFF', fill: GREY, h: 'center' }));
+  const hdr = st.get({ b: 1, sz: 8, color: 'FFFFFF', fill: TEAL, h: 'center', wrap: 1, bd: 'FFFFFF' });
+  const hdrRot = st.get({ b: 1, sz: 8, color: 'FFFFFF', fill: TEAL, h: 'center', rot: 90, bd: 'FFFFFF' });
+  ['MATRICULA', 'COLABORADOR', 'CARGO', 'JORN.', 'EQUIPE', 'ESCALA', 'CÓD. HORÁRIO', 'TURNO'].forEach((t, c) => mg(4, c, 5, c, t, hdr));
+  mg(4, cF, 5, cF, 'FOLGAS', hdrRot);
+  mg(4, cH, 5, cH, 'HORAS TRAB.', hdrRot);
+  mg(4, cT, 5, cT, 'HORÁRIO', hdr);
+  for(let d = 0; d < D; d++){
+    const w = dows[d];
+    const fill = w === 0 ? PURPLE : (w === 6 ? '8C8C8C' : GREY);
+    sh.put(4, c0 + d, DOWX[w], st.get({ b: 1, sz: 8, color: 'FFFFFF', fill, h: 'center', rot: 90, bd: 'FFFFFF' }));
+    sh.put(5, c0 + d, d + 1, st.get({ b: 1, sz: 9, color: '000000', fill, h: 'center', nf: 164, bd: 'FFFFFF' }));
+  }
+
+  // ---- linhas ----
+  let r = 6;
+  const blank = st.get({ sz: 8, h: 'center', bd: BD });
+  const cellMatr = st.get({ sz: 8, fill: 'DDEBF7', h: 'center', bd: BD });
+  const cellName = st.get({ sz: 8, fill: 'DDEBF7', h: 'left', bd: BD });
+  const cellCargo = st.get({ sz: 8, h: 'left', bd: BD });
+  const cellTot = st.get({ b: 1, sz: 8, h: 'center', bd: BD });
+  const cellHor = st.get({ sz: 8, fill: 'FCE4D6', h: 'center', bd: BD });
+  const dayStyle = w => st.get({ b: 1, sz: 9, h: 'center', bd: BD, fill: w === 0 ? 'D9D2E9' : (w === 6 ? 'D9D9D9' : null) });
+
+  groups.forEach(g => {
+    mg(r, 0, r, lastCol, `${(g.fn ? g.fn.name : 'Sem função').toUpperCase()} (${g.list.length})`, st.get({ b: 1, sz: 9, color: 'FFFFFF', fill: RED, h: 'left' }));
+    sh.heights[r] = 15;
+    r++;
+    g.list.forEach(p => {
+      const inf = info[p.id];
+      sh.heights[r] = 17;
+      sh.put(r, 0, (p.registration || '').trim(), cellMatr);
+      sh.put(r, 1, String(p.name || '').toUpperCase(), cellName);
+      sh.put(r, 2, CARGO[g.gid] || 'AUXILIAR DE RAMPA', cellCargo);
+      for(let c = 3; c < c0; c++) sh.put(r, c, null, blank);
+      for(let d = 0; d < D; d++){
+        let label = null;
+        if(inf.offs[d]) label = inf.faSet.has(d) ? 'FA' : 'F';
+        else if(inf.codes[d]) label = inf.codes[d];
+        sh.put(r, c0 + d, label, dayStyle(dows[d]));
+      }
+      sh.put(r, cF, inf.total, cellTot);
+      sh.put(r, cH, null, blank);
+      sh.put(r, cT, null, cellHor);
+      r++;
+    });
+  });
+
+  // ---- rodapé: quantas pessoas folgam em cada dia ----
+  const foot = st.get({ b: 1, sz: 8, fill: 'E5E7EB', h: 'center', bd: BD });
+  mg(r, 0, r, c0 - 1, 'FOLGAM', st.get({ b: 1, sz: 8, fill: 'E5E7EB', h: 'left', bd: BD }));
+  let sum = 0;
+  for(let d = 0; d < D; d++){
+    const n = roster.filter(p => info[p.id].offs[d]).length;
+    sum += n;
+    sh.put(r, c0 + d, n, foot);
+  }
+  sh.put(r, cF, sum, foot);
+  sh.put(r, cH, null, foot);
+  sh.put(r, cT, null, foot);
+  sh.heights[r] = 16;
+
+  sh.freeze = { c: 2, r: 6 };
+
+  const sheetName = `Escala ${capFirst(MONTHS[month])}`;
+  const NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+  const REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+  const files = [
+    { name: '[Content_Types].xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>' },
+    { name: '_rels/.rels', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${REL}/officeDocument" Target="xl/workbook.xml"/></Relationships>` },
+    { name: 'xl/workbook.xml', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="${NS}" xmlns:r="${REL}"><sheets><sheet name="${xlsxEsc(sheetName)}" sheetId="1" r:id="rId1"/></sheets></workbook>` },
+    { name: 'xl/_rels/workbook.xml.rels', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${REL}/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="${REL}/styles" Target="styles.xml"/></Relationships>` },
+    { name: 'xl/styles.xml', data: st.xml() },
+    { name: 'xl/worksheets/sheet1.xml', data: sh.xml() }
+  ];
+  return { bytes: xlsxZip(files), filename: `escala-${normalizeText(MONTHS[month])}-${year}.xlsx` };
+}
+
+function downloadXlsxBytes(bytes, filename){
+  const blob = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+function exportXlsxForMonth(y, m){
+  try{
+    const res = buildEscalaXlsx(y, m);
+    if(!res){
+      showToast('Ninguém está incluído na escala deste mês ainda.');
+      return;
+    }
+    downloadXlsxBytes(res.bytes, res.filename);
+    showToast('Excel da escala gerado ✓');
+  }catch(err){
+    console.error('Falha ao exportar Excel:', err);
+    showToast('Não consegui gerar o Excel. Tente de novo.');
+  }
+}
 
 // ---------- Init ----------
 restoreUiState();
