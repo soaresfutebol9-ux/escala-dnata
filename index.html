@@ -33,7 +33,7 @@
     --c-porao: #5B7FFF;
     --c-limpeza: #2DD4BF;
     --c-operador: #FBBF24;
-    --c-restituicao: #A78BFA;
+    --c-triagem: #A78BFA;
     --c-lider: #FF6B35;
     --c-hoje: #FFD60A;
 
@@ -1195,6 +1195,12 @@
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     border-right: 1px solid var(--border);
   }
+  /* barrinha vertical à esquerda do nome, na cor da função (Líder, Operador, Porão, Limpeza, Triagem) */
+  .gen-table td.nm.fnbar{ padding-left: 16px; }
+  .gen-table td.nm.fnbar::before{
+    content: ''; position: absolute; left: 6px; top: 6px; bottom: 6px; width: 4px;
+    border-radius: 2px; background: var(--fn, transparent);
+  }
   .gen-table th.dh{ font-weight: 600; color: var(--text-dim); padding: 6px 0; min-width: 26px; background: var(--surface-2); }
   .gen-table th.dh .dn{ display: block; font-family: 'Space Grotesk', sans-serif; font-size: 12px; color: var(--text); }
   .gen-table th.dh .dw{ display: block; font-size: 9.5px; text-transform: uppercase; }
@@ -1601,7 +1607,7 @@ const FUNCTIONS = [
   { id: 'porao', name: 'Porão', color: 'var(--c-porao)', hex: '#5B7FFF' },
   { id: 'limpeza', name: 'Limpeza', color: 'var(--c-limpeza)', hex: '#2DD4BF' },
   { id: 'operador', name: 'Operador', color: 'var(--c-operador)', hex: '#FBBF24' },
-  { id: 'restituicao', name: 'Reestituição', color: 'var(--c-restituicao)', hex: '#A78BFA' },
+  { id: 'triagem', name: 'Triagem', color: 'var(--c-triagem)', hex: '#A78BFA' },
   { id: 'lider', name: 'Líder', color: 'var(--c-lider)', hex: '#FF6B35' },
 ];
 const DOW = ['dom','seg','ter','qua','qui','sex','sáb'];
@@ -1724,9 +1730,9 @@ function sortPeople(list){
     return (a.registration||'').localeCompare(b.registration||'');
   });
 }
-// Ordem da aba "Escala": Líder, Operador, Reestituição, Limpeza e, por fim, o restante
+// Ordem da aba "Escala": Líder, Operador, Triagem, Limpeza e, por fim, o restante
 // (Porão e quem não tem função), cada grupo em ordem alfabética pelo nome.
-const ESCALA_FN_ORDER = ['lider','operador','restituicao','limpeza'];
+const ESCALA_FN_ORDER = ['lider','operador','triagem','limpeza'];
 function escalaRank(p){
   const fns = p.functions||[];
   const i = ESCALA_FN_ORDER.findIndex(id => fns.includes(id));
@@ -1810,9 +1816,18 @@ function loadState(){
       }else{
         state = Object.assign({}, DEFAULT_STATE);
       }
+      // migração: a função "Reestituição" virou "Triagem" (troca o id guardado nos dados salvos)
+      let fnMigrated = false;
+      (state.people || []).forEach(p => {
+        if(Array.isArray(p.functions) && p.functions.includes('restituicao')){
+          p.functions = [...new Set(p.functions.map(f => f === 'restituicao' ? 'triagem' : f))];
+          fnMigrated = true;
+        }
+      });
       applyingRemoteState = false;
       render();
       isFirstSnapshot = false;
+      if(fnMigrated) saveState();
     },
     (err) => {
       console.error('Firestore onSnapshot error', err);
@@ -4192,7 +4207,7 @@ async function genDiagnoseRun(cfg, bad, seed){
 
 
 // ---------- Gerador automático de escala: assistente ----------
-const GEN_GROUP_ORDER = ['lider','operador','porao','limpeza','restituicao'];
+const GEN_GROUP_ORDER = ['lider','operador','porao','limpeza','triagem'];
 const GEN_STEPS = [
   { eyebrow: 'Pessoas',      title: 'Quem entra na escala?' },
   { eyebrow: 'Pedidos',      title: 'Algum dia específico?' },
@@ -4734,7 +4749,9 @@ function genTableHtml(cfg, sol){
       const isSel = !!(gen && gen.sel && gen.sel.sol === sol && gen.sel.p === i && gen.sel.d === d);
       cells += `<td class="c ${(dows[d] === 0 || dows[d] === 6) ? 'wknd' : ''} ${(P.isNew && d < (P.startDay || 0)) ? 'pre' : ''}"${editable ? ` data-p="${i}" data-d="${d}"` : ''}>${a[d] ? `<span class="gen-cell ${cls} ${isSel ? 'sel' : ''}" style="animation-delay:${delay}ms">${isFa ? 'FA' : 'F'}</span>` : ''}</td>`;
     }
-    rows += `<tr class="${P.frozen ? 'frz' : (P.isNew ? 'newp' : '')}"><td class="nm" title="${genEsc(P.name)}">${genEsc(P.name)}${P.isNew ? '<span class="gen-newtag">novo</span>' : ''}</td>${cells}<td class="tot ${(!P.frozen && !P.isNew && count < (P.minOffs != null ? P.minOffs : cfg.rules.offs)) ? 'bad' : ''}">${count}</td></tr>`;
+    const fnPerson = (state.people || []).find(x => x.id === P.id);
+    const fnDef = fnPerson ? fnById(genGroupOf(fnPerson)) : null;
+    rows += `<tr class="${P.frozen ? 'frz' : (P.isNew ? 'newp' : '')}"><td class="nm${fnDef ? ' fnbar' : ''}"${fnDef ? ` style="--fn:${fnDef.color}"` : ''} title="${genEsc(P.name)}">${genEsc(P.name)}${P.isNew ? '<span class="gen-newtag">novo</span>' : ''}</td>${cells}<td class="tot ${(!P.frozen && !P.isNew && count < (P.minOffs != null ? P.minOffs : cfg.rules.offs)) ? 'bad' : ''}">${count}</td></tr>`;
   });
   // linha de baixo da tabela: quantas pessoas estão DISPONÍVEIS (trabalhando) em cada dia.
   // Quem ainda não entrou na escala (entra no meio do mês) não conta antes do dia de início.
