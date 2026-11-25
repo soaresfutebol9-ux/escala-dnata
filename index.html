@@ -1254,7 +1254,24 @@
   }
   .gen-expand-btn.sq{ width:34px; height:34px; padding:0; display:inline-flex; align-items:center; justify-content:center; font-size:16px; line-height:1; }
   .cal-schedule{ margin-top:16px; }
-  .cal-sched-bar{ display:flex; justify-content:flex-end; margin:0 0 8px; }
+  .cal-sched-bar{ display:flex; justify-content:flex-end; align-items:center; gap:8px; margin:0 0 8px; }
+  .gen-expand-btn.edit{ display:inline-flex; align-items:center; gap:6px; height:34px; padding:0 14px; }
+  /* modo de edição da tabela */
+  .gen-full.editing .gen-full-host{ border-color:var(--accent); box-shadow:0 0 0 1px rgba(255,107,53,.35), 0 0 24px rgba(255,107,53,.12); }
+  .gen-full.editing .gen-table td.c[data-p]{
+    cursor:pointer; -webkit-tap-highlight-color:transparent;
+    background-image:radial-gradient(circle, rgba(255,255,255,.16) 1.5px, transparent 2.2px);
+    background-repeat:no-repeat; background-position:center;
+  }
+  .gen-full.editing .gen-table td.c[data-p]:active{ background-color:rgba(255,107,53,.18); }
+  .gen-table td.c.ed-flash{ animation:edFlash .8s ease; }
+  .gen-table-wrap.noanim td.ed-flash .gen-cell{ animation:edPop .35s cubic-bezier(.2,1.4,.4,1); }
+  @keyframes edFlash{ 0%{ background-color:rgba(255,107,53,.5); } 100%{ background-color:transparent; } }
+  @keyframes edPop{ from{ transform:scale(.4); opacity:.4; } to{ transform:none; opacity:1; } }
+  .gen-edit-hint{ padding:10px 12px 0; font-size:12px; line-height:1.45; color:var(--text-dim); }
+  .gen-edit-hint b{ color:var(--text); }
+  .gen-opt-tab:disabled{ opacity:.4; cursor:not-allowed; }
+  .gen-full-msg.ok{ color:#34D399; background:rgba(52,211,153,.10); border-color:rgba(52,211,153,.4); }
   .gen-expand-btn:hover{ border-color:var(--accent); }
   .gen-expand-btn:active{ transform:scale(.95); }
   .gen-opt-note{ font-size:12px; color:var(--text-faint); margin:-2px 0 10px; line-height:1.4; }
@@ -1590,7 +1607,7 @@ const FUNCTIONS = [
 const DOW = ['dom','seg','ter','qua','qui','sex','sáb'];
 const MONTHS = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
 function capFirst(s){ return s.charAt(0).toUpperCase() + s.slice(1); }
-const DEFAULT_STATE = { people: [], offDays: {}, requestedOffDays: {}, absences: {}, dayAssignments: {}, publishedMonths: [], monthRosters: {}, coveragePairs: [], faMonths: {}, shiftCodes: {} };
+const DEFAULT_STATE = { people: [], offDays: {}, requestedOffDays: {}, absences: {}, dayAssignments: {}, publishedMonths: [], monthRosters: {}, coveragePairs: [], faMonths: {}, shiftCodes: {}, midMonthJoiners: {} };
 
 // ---------- State ----------
 let state = Object.assign({}, DEFAULT_STATE);
@@ -1925,9 +1942,17 @@ function toggleOffDay(personId, dateStr){
 // que uma alteração torna um dia "de trabalho" para alguém (remover folga,
 // remover falta), para pegar erros de troca antes que virem 7 dias seguidos.
 const MAX_CONSECUTIVE_WORK_DAYS = 6;
-// Regra da empresa: cada pessoa precisa ter entre 5 e 9 folgas por mês.
-const MIN_OFF_DAYS_PER_MONTH = 5;
+// Regra da empresa: cada pessoa precisa ter entre 8 e 9 folgas por mês.
+const MIN_OFF_DAYS_PER_MONTH = 8;
 const MAX_OFF_DAYS_PER_MONTH = 9;
+// Quem entra no meio do mês (acrescentado à escala já feita) não precisa ter o mínimo de folgas:
+// recebe só o que couber nos dias que restam. Isso fica guardado por mês.
+function isMidMonthJoiner(personId, y, m){
+  return ((state.midMonthJoiners || {})[monthKey(y, m)] || []).includes(personId);
+}
+function minOffsFor(personId, y, m){
+  return isMidMonthJoiner(personId, y, m) ? 0 : MIN_OFF_DAYS_PER_MONTH;
+}
 
 function offDaysCountInMonth(personId, year, month){ // month 0-indexado
   const arr = state.offDays[personId] || [];
@@ -2885,7 +2910,8 @@ function renderMiniCal(){
   })();
   const countThisMonth = offDaysCountInMonth(offDaysPersonId, miniYear, miniMonth);
   const atMax = countThisMonth >= MAX_OFF_DAYS_PER_MONTH;
-  const atMin = countThisMonth <= MIN_OFF_DAYS_PER_MONTH;
+  const minOffs = minOffsFor(offDaysPersonId, miniYear, miniMonth);
+  const atMin = countThisMonth <= minOffs;
   for(let d=1; d<=daysInMonth; d++){
     const dateStr = iso(miniYear, miniMonth, d);
     const off = offArr.includes(dateStr);
@@ -2909,7 +2935,7 @@ function renderMiniCal(){
     const title = conflict ? `Conflito de restrição: ${joinNamesPT(conflictIds)} também ${conflictIds.length > 1 ? 'estão' : 'está'} de folga`
       : requested ? `Folga desejada — solicitada pelo funcionário`
       : violation ? `Dia além do limite de ${MAX_CONSECUTIVE_WORK_DAYS} dias seguidos`
-      : (noToggle ? (off ? `Mínimo de ${MIN_OFF_DAYS_PER_MONTH} folgas no mês` : `Máximo de ${MAX_OFF_DAYS_PER_MONTH} folgas no mês`) : '');
+      : (noToggle ? (off ? `Mínimo de ${minOffs} folgas no mês` : `Máximo de ${MAX_OFF_DAYS_PER_MONTH} folgas no mês`) : '');
     html += `<div class="mini-day ${off?'off':''} ${requested?'requested':''} ${violation?'violation':''} ${conflict?'conflict':''} ${noToggle?'no-toggle':''} ${code?'hascode':''} ${isFa?'fa':''}" data-date="${dateStr}" title="${conflict ? title : (code ? 'Turno ' + code : (isFa ? 'FA — folga agrupada' : title))}"><span class="mnum">${d}</span>${badge ? `<span class="${off ? 'mfl' : 'mcode'}">${badge}</span>` : ''}</div>`;
   }
   grid.innerHTML = html;
@@ -2976,8 +3002,9 @@ function renderMiniCal(){
         showToast(`Máximo de ${MAX_OFF_DAYS_PER_MONTH} folgas neste mês. Remova outra antes de adicionar.`);
         return;
       }
-      if(wasOff && countNow <= MIN_OFF_DAYS_PER_MONTH){
-        showToast(`Mínimo de ${MIN_OFF_DAYS_PER_MONTH} folgas neste mês. Não é possível remover mais uma.`);
+      const minNow = minOffsFor(offDaysPersonId, miniYear, miniMonth);
+      if(wasOff && countNow <= minNow){
+        showToast(`Mínimo de ${minNow} folgas neste mês. Não é possível remover mais uma.`);
         return;
       }
       if(!wasOff && blockIfCoverageConflict(offDaysPersonId, dateStr)) return;
@@ -4081,7 +4108,7 @@ function genPrecheckDeep(cfg){
     const works = k => k >= P.forcedCount && !!genBestPattern(Object.assign({}, P, { K: k }), cfg, zero, 0);
     let sug = null;
     for(let k = cfg.rules.offs + 1; k <= 9 && !sug; k++) if(works(k)) sug = k;
-    for(let k = cfg.rules.offs - 1; k >= 5 && !sug; k--) if(works(k)) sug = k;
+    for(let k = cfg.rules.offs - 1; k >= MIN_OFF_DAYS_PER_MONTH && !sug; k--) if(works(k)) sug = k;
     const key = why + '|' + sug;
     (groups[key] = groups[key] || { why, sug, names: [] }).names.push(P.name);
   });
@@ -4240,7 +4267,7 @@ function genRestoreDraft(d){
   gen.extraGroups = (d.extraGroups || []).map(g => g.filter(id => ids.has(id))).filter(g => g.length >= 2);
   const r = d.rules || {};
   gen.rules = {
-    offs: genClamp(r.offs || 8, 5, 9), maxWork: genClamp(r.maxWork || 5, 3, 7),
+    offs: genClamp(r.offs || 8, MIN_OFF_DAYS_PER_MONTH, MAX_OFF_DAYS_PER_MONTH), maxWork: genClamp(r.maxWork || 5, 3, 7),
     maxSun: genClamp(r.maxSun || 5, 2, 8),
     maxPerDay: Number.isInteger(r.maxPerDay) ? Math.max(1, r.maxPerDay) : null
   };
@@ -4707,7 +4734,7 @@ function genTableHtml(cfg, sol){
       const isSel = !!(gen && gen.sel && gen.sel.sol === sol && gen.sel.p === i && gen.sel.d === d);
       cells += `<td class="c ${(dows[d] === 0 || dows[d] === 6) ? 'wknd' : ''} ${(P.isNew && d < (P.startDay || 0)) ? 'pre' : ''}"${editable ? ` data-p="${i}" data-d="${d}"` : ''}>${a[d] ? `<span class="gen-cell ${cls} ${isSel ? 'sel' : ''}" style="animation-delay:${delay}ms">${isFa ? 'FA' : 'F'}</span>` : ''}</td>`;
     }
-    rows += `<tr class="${P.frozen ? 'frz' : (P.isNew ? 'newp' : '')}"><td class="nm" title="${genEsc(P.name)}">${genEsc(P.name)}${P.isNew ? '<span class="gen-newtag">novo</span>' : ''}</td>${cells}<td class="tot ${(!P.frozen && !P.isNew && count < cfg.rules.offs) ? 'bad' : ''}">${count}</td></tr>`;
+    rows += `<tr class="${P.frozen ? 'frz' : (P.isNew ? 'newp' : '')}"><td class="nm" title="${genEsc(P.name)}">${genEsc(P.name)}${P.isNew ? '<span class="gen-newtag">novo</span>' : ''}</td>${cells}<td class="tot ${(!P.frozen && !P.isNew && count < (P.minOffs != null ? P.minOffs : cfg.rules.offs)) ? 'bad' : ''}">${count}</td></tr>`;
   });
   // linha de baixo da tabela: quantas pessoas estão DISPONÍVEIS (trabalhando) em cada dia.
   // Quem ainda não entrou na escala (entra no meio do mês) não conta antes do dia de início.
@@ -4854,13 +4881,14 @@ function genShowOption(i){
 // ---- edição manual na escala gerada (tela expandida) ----
 // Toque numa folga e depois no dia de destino (mesma pessoa): a folga muda de dia.
 // Se o novo dia quebrar alguma regra, a troca não acontece e a tela mostra o motivo.
-function genEditMsg(text){
+function genEditMsg(text, ok){
   const el = document.getElementById('genFullMsg');
   if(!el) return;
   clearTimeout(el._t);
   el.textContent = text || '';
+  el.classList.toggle('ok', !!ok);
   el.classList.toggle('show', !!text);
-  if(text) el._t = setTimeout(() => el.classList.remove('show'), 6000);
+  if(text) el._t = setTimeout(() => el.classList.remove('show'), ok ? 2600 : 6000);
 }
 function genRefreshTables(){
   const r = gen && gen.result;
@@ -4902,6 +4930,7 @@ function genMoveProblems(sol, pi, from, to){
   return problems;
 }
 function genCellClick(e){
+  if(schedEdit.active){ schedEditCellClick(e); return; }
   const td = e.target.closest('td.c[data-p]');
   if(!td || !gen || !gen.result || !gen.result.options.length) return;
   const sol = gen.result.options[gen.result.active];
@@ -4968,9 +4997,12 @@ function genFullClose(){
   if(!f) return;
   if(gen) gen.sel = null;
   genEditMsg('');
-  f.classList.remove('open', 'force-land');
+  const wasEditing = schedEdit.active;
+  if(wasEditing){ schedEdit.active = false; schedEdit.undo = []; }
+  f.classList.remove('open', 'force-land', 'editing');
   f.setAttribute('aria-hidden', 'true');
   genFullLayout();
+  if(wasEditing){ try{ renderCalendar(); renderCalSchedule(); }catch(err){ console.error(err); } } // mostra na tela principal o que foi editado
 }
 registerOverlay('genFull', genFullClose);
 
@@ -4990,7 +5022,7 @@ function schedBuildTable(y, m){
     D, dows, rules: { offs: 0 }, M: Infinity,
     cleanIdx: people.map((p, i) => genGroupOf(p) === 'limpeza' ? i : -1).filter(i => i >= 0),
     people: people.map(p => ({
-      id: p.id, name: p.name, frozen: false, isNew: false, startDay: 0,
+      id: p.id, name: p.name, frozen: false, isNew: false, startDay: 0, minOffs: minOffsFor(p.id, y, m),
       reqMask: Array.from({ length: D }, (_, d) => isRequestedOff(p.id, iso(y, m, d + 1)))
     }))
   };
@@ -5001,14 +5033,154 @@ function renderCalSchedule(){
   if(!host) return;
   const t = isMonthPublished(calYear, calMonth) ? schedBuildTable(calYear, calMonth) : null;
   if(!t){ host.innerHTML = ''; return; }
-  host.innerHTML = `<div class="cal-sched-bar"><button class="gen-expand-btn sq" id="calSchedExpand" aria-label="Expandir tabela de folgas" title="Expandir">⤢</button></div>
+  host.innerHTML = `<div class="cal-sched-bar"><button class="gen-expand-btn edit" id="calSchedEdit" aria-label="Editar tabela de folgas" title="Editar">✏️ Editar</button><button class="gen-expand-btn sq" id="calSchedExpand" aria-label="Expandir tabela de folgas" title="Expandir">⤢</button></div>
     <div class="gen-table-wrap noanim">${genTableHtml(t.cfg, t.sol)}</div>`;
+  document.getElementById('calSchedEdit').addEventListener('click', schedOpenEdit);
   document.getElementById('calSchedExpand').addEventListener('click', () => {
     const y = calYear, m = calMonth;
     const tt = schedBuildTable(y, m);
     if(!tt) return;
     openFullOverlay(`${capFirst(MONTHS[m])} ${y}`, '', `<div class="gen-table-wrap noanim">${genTableHtml(tt.cfg, tt.sol)}</div>${genLegendHtml()}`);
   });
+}
+
+// ---------- Edição da tabela de folgas (tela principal) ----------
+// O botão ✏️ Editar abre a tabela já expandida, em modo de edição: toque num dia para marcar
+// ou tirar a folga, escolha a ferramenta (Folga / Desejada) e desfaça o que errar. Tudo salva
+// na hora, com as mesmas regras do editor por pessoa (8 a 9 folgas, restrições, dias seguidos).
+const schedEdit = { active: false, y: 0, m: 0, tool: 'off', undo: [] };
+
+function schedEditToolbarHtml(){
+  return `<button class="gen-opt-tab ${schedEdit.tool === 'off' ? 'on' : ''}" data-edtool="off">✋ Folga</button>
+    <button class="gen-opt-tab ${schedEdit.tool === 'req' ? 'on' : ''}" data-edtool="req">⭐ Desejada</button>
+    <button class="gen-opt-tab" id="schedUndoBtn" data-edundo="1" ${schedEdit.undo.length ? '' : 'disabled'}>↶ Desfazer</button>`;
+}
+function schedEditLegendHtml(){
+  const hint = schedEdit.tool === 'req'
+    ? 'Toque num dia para marcar ou tirar a marcação de <b>folga desejada</b>. Num dia vazio, cria a folga já como desejada.'
+    : 'Toque num dia para <b>marcar</b> ou <b>tirar</b> a folga. As mudanças são salvas na hora.';
+  return `<div class="gen-edit-hint">${hint}</div>${genLegendHtml()}`;
+}
+function schedEditBuild(){
+  const t = schedBuildTable(schedEdit.y, schedEdit.m);
+  if(t) t.cfg.rules.offs = MIN_OFF_DAYS_PER_MONTH; // quem está abaixo do mínimo fica com o total em vermelho
+  return t;
+}
+function schedOpenEdit(){
+  const y = calYear, m = calMonth;
+  schedEdit.y = y; schedEdit.m = m; schedEdit.tool = 'off'; schedEdit.undo = [];
+  const t = schedEditBuild();
+  if(!t) return;
+  schedEdit.active = true;
+  const f = document.getElementById('genFull');
+  f.classList.add('editing');
+  openFullOverlay(`✏️ ${capFirst(MONTHS[m])} ${y}`, schedEditToolbarHtml(),
+    `<div class="gen-table-wrap noanim">${genTableHtml(t.cfg, t.sol)}</div>${schedEditLegendHtml()}`);
+  genEditMsg('Modo edição: toque num dia para marcar ou tirar a folga.', true);
+}
+function schedEditRefresh(flash){
+  const t = schedEditBuild();
+  const host = document.getElementById('genFullHost');
+  if(!t || !host) return;
+  const w = host.querySelector('.gen-table-wrap');
+  const keep = { w: w ? w.scrollLeft : 0, t: host.scrollTop, l: host.scrollLeft };
+  host.innerHTML = `<div class="gen-table-wrap noanim">${genTableHtml(t.cfg, t.sol)}</div>${schedEditLegendHtml()}`;
+  const w2 = host.querySelector('.gen-table-wrap');
+  if(w2) w2.scrollLeft = keep.w;
+  host.scrollTop = keep.t; host.scrollLeft = keep.l;
+  if(flash){
+    const pi = t.cfg.people.findIndex(P => P.id === flash.pid);
+    const td = host.querySelector(`td.c[data-p="${pi}"][data-d="${flash.d}"]`);
+    if(td){ td.classList.add('ed-flash'); }
+  }
+  const tabs = document.getElementById('genFullTabs');
+  if(tabs){
+    tabs.querySelectorAll('[data-edtool]').forEach(b => b.classList.toggle('on', b.dataset.edtool === schedEdit.tool));
+    const u = document.getElementById('schedUndoBtn');
+    if(u) u.disabled = !schedEdit.undo.length;
+  }
+}
+function schedEditCellClick(e){
+  const td = e.target.closest('td.c[data-p]');
+  if(!td) return;
+  const t = schedEditBuild();
+  if(!t) return;
+  const pi = parseInt(td.dataset.p, 10), d = parseInt(td.dataset.d, 10);
+  const P = t.cfg.people[pi];
+  if(!P) return;
+  const y = schedEdit.y, m = schedEdit.m;
+  const pid = P.id, ds = iso(y, m, d + 1), dlabel = formatDateBR(ds);
+  const person = state.people.find(x => x.id === pid);
+  const nm = person ? person.name : 'Pessoa';
+  const wasOff = isOff(pid, ds);
+  const wasReq = wasOff && isRequestedOff(pid, ds);
+  const cnt = offDaysCountInMonth(pid, y, m);
+  const rec = { pid, ds, off: wasOff, req: wasReq, code: getShiftCode(pid, ds) };
+
+  const checkAdd = () => {
+    if(cnt >= MAX_OFF_DAYS_PER_MONTH){ genEditMsg(`${nm} já tem ${MAX_OFF_DAYS_PER_MONTH} folgas no mês (máximo). Tire outra antes de adicionar.`); return false; }
+    const clash = coverageConflictsFor(pid, ds);
+    if(clash.length){
+      genEditMsg(`Não pode: ${joinNamesPT(clash)} já ${clash.length > 1 ? 'estão' : 'está'} de folga em ${dlabel} (restrição de folga).`);
+      return false;
+    }
+    return true;
+  };
+
+  if(schedEdit.tool === 'req'){
+    if(wasOff){
+      schedEdit.undo.push(rec);
+      if(wasReq){ unmarkRequestedOff(pid, ds); genEditMsg(`Marcação de desejada removida · ${nm} · ${dlabel}`, true); }
+      else { markRequestedOff(pid, ds); genEditMsg(`Folga desejada marcada · ${nm} · ${dlabel}`, true); }
+    }else{
+      if(!checkAdd()) return;
+      schedEdit.undo.push(rec);
+      toggleOffDay(pid, ds);
+      markRequestedOff(pid, ds);
+      genEditMsg(`Folga desejada criada · ${nm} · ${dlabel}`, true);
+    }
+    schedEditRefresh({ pid, d });
+    return;
+  }
+
+  // ferramenta "Folga": toque alterna marcar / tirar
+  if(wasOff){
+    const minOffs = minOffsFor(pid, y, m);
+    if(cnt <= minOffs){ genEditMsg(`${nm} fica com o mínimo de ${minOffs} folgas no mês. Não dá para tirar mais uma.`); return; }
+    if(wasReq && !confirm(`Remover a folga desejada de ${dlabel}?`)) return;
+    schedEdit.undo.push(rec);
+    toggleOffDay(pid, ds);
+    genEditMsg(`Folga removida · ${nm} · ${dlabel}`, true);
+    schedEditRefresh({ pid, d });
+    // o dia virou dia de trabalho: confere o limite de dias seguidos (pode desfazer)
+    warnIfConsecutiveViolation(pid, ds, () => {
+      schedEdit.undo.pop();
+      toggleOffDay(pid, ds);
+      if(wasReq) markRequestedOff(pid, ds);
+      schedEditRefresh({ pid, d });
+    });
+  }else{
+    if(!checkAdd()) return;
+    schedEdit.undo.push(rec);
+    toggleOffDay(pid, ds);
+    genEditMsg(`Folga marcada · ${nm} · ${dlabel}`, true);
+    schedEditRefresh({ pid, d });
+  }
+}
+function schedEditUndo(){
+  const r = schedEdit.undo.pop();
+  if(!r) return;
+  if(!state.offDays[r.pid]) state.offDays[r.pid] = [];
+  const arr = state.offDays[r.pid];
+  const i = arr.indexOf(r.ds);
+  if(r.off && i < 0) arr.push(r.ds);
+  if(!r.off && i >= 0) arr.splice(i, 1);
+  if(r.req) markRequestedOff(r.pid, r.ds); else unmarkRequestedOff(r.pid, r.ds);
+  if(!r.off && r.code) setShiftCode(r.pid, r.ds, r.code);
+  saveState();
+  const person = state.people.find(x => x.id === r.pid);
+  genEditMsg(`Desfeito · ${person ? person.name : ''} · ${formatDateBR(r.ds)}`, true);
+  schedEditRefresh({ pid: r.pid, d: parseInt(r.ds.slice(8, 10), 10) - 1 });
 }
 
 // ---- acrescentar pessoa à escala já feita ----
@@ -5144,7 +5316,7 @@ function genAppendStep1(){
     </div>`;
   return `<p class="gen-lead">As folgas de todo mundo que já está na escala ficam <b>exatamente como estão</b>. Só a pessoa nova é encaixada, respeitando as mesmas regras (dias seguidos, FA, domingo, restrições).</p>
     <div class="gen-rule">
-      <div class="rtext"><div class="rtitle">Folgas até o fim do mês</div><div class="rhint">Restam ${rem} dia${rem > 1 ? 's' : ''}. Sugestão proporcional aos dias que faltam.</div></div>
+      <div class="rtext"><div class="rtitle">Folgas até o fim do mês</div><div class="rhint">Restam ${rem} dia${rem > 1 ? 's' : ''}. Sugestão proporcional aos dias que faltam; quem entra no meio do mês não precisa chegar a ${MIN_OFF_DAYS_PER_MONTH} folgas.</div></div>
       ${stepper('appendOffs', genAppendOffsVal())}
     </div>
     <div class="gen-rule">
@@ -5222,6 +5394,12 @@ function genApply(){
   const selectedIds = cfg.people.filter(P => !P.frozen).map(P => P.id);
   const faIds = cfg.people.filter((P, i) => !P.frozen && genFaFirstDays(sol.offs[i], cfg.dows).length > 0).map(P => P.id);
   state.faMonths[key] = (state.faMonths[key] || []).filter(id => !selectedIds.includes(id)).concat(faIds);
+  if(!state.midMonthJoiners) state.midMonthJoiners = {};
+  {
+    const joiners = (state.midMonthJoiners[key] || []).filter(id => !selectedIds.includes(id));
+    if(cfg.append) cfg.people.forEach(P => { if(P.isNew && !P.frozen) joiners.push(P.id); });
+    if(joiners.length) state.midMonthJoiners[key] = joiners; else delete state.midMonthJoiners[key];
+  }
 
   cfg.people.forEach((P, i) => {
     if(P.frozen) return; // quem já estava na escala fica exatamente como está
@@ -5417,7 +5595,7 @@ function genGo(step, dir){
     }
     else if(act === 'step'){
       const key = el.dataset.key, dlt = parseInt(el.dataset.d, 10);
-      const limits = { offs: [5, 9], maxWork: [3, 7], maxSun: [2, 8] };
+      const limits = { offs: [MIN_OFF_DAYS_PER_MONTH, MAX_OFF_DAYS_PER_MONTH], maxWork: [3, 7], maxSun: [2, 8] };
       if(key === 'appendOffs'){
         gen.appendOffs = genClamp(genAppendOffsVal() + dlt, 1, 9);
       }else if(key === 'appendM'){
@@ -5471,6 +5649,12 @@ function genGo(step, dir){
     genFullLayout();
   });
   document.getElementById('genFullHost').addEventListener('click', genCellClick);
+  document.getElementById('genFullTabs').addEventListener('click', (e) => {
+    if(!schedEdit.active) return;
+    const tool = e.target.closest('[data-edtool]');
+    if(tool){ schedEdit.tool = tool.dataset.edtool; genEditMsg(''); schedEditRefresh(); return; }
+    if(e.target.closest('[data-edundo]')) schedEditUndo();
+  });
   f.addEventListener('click', (e) => {
     const b = e.target.closest('[data-act="optPick"]');
     if(b) genShowOption(parseInt(b.dataset.i, 10));
@@ -5743,9 +5927,7 @@ function buildEscalaXlsx(year, month){
   const dayStyle = w => st.get({ b: 1, sz: 9, h: 'center', bd: BD, fill: w === 0 ? 'D9D2E9' : (w === 6 ? 'D9D9D9' : null) });
 
   groups.forEach(g => {
-    mg(r, 0, r, lastCol, `${(g.fn ? g.fn.name : 'Sem função').toUpperCase()} (${g.list.length})`, st.get({ b: 1, sz: 9, color: 'FFFFFF', fill: RED, h: 'left' }));
-    sh.heights[r] = 15;
-    r++;
+    // sem linha de categoria (Líder, Porão, Limpeza...): só as pessoas, com matrícula e nome
     g.list.forEach(p => {
       const inf = info[p.id];
       sh.heights[r] = 17;
