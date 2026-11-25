@@ -4320,7 +4320,14 @@ function genFixedDowsByPid(){
   });
   return map;
 }
+// Exceção: pessoas que têm o sábado fixo (religião) e também o domingo do mês já ganham a
+// folga agrupada naturalmente; para elas a regra de FA não se aplica ('free' = nem obriga, nem proíbe).
+const GEN_NO_FA_NAMES = ['josue marques'];
+function genIsNoFaPerson(p){
+  return !!p && GEN_NO_FA_NAMES.includes(normalizeText(p.name).trim().replace(/\s+/g, ' '));
+}
 function genFaMode(pid, fixedDows){
+  if(genIsNoFaPerson((state.people || []).find(x => x.id === pid))) return 'free';
   if(fixedDows && fixedDows.has(0)) return 'never';
   if(fixedDows && fixedDows.has(6)) return 'must';
   return gen.faLast.has(pid) ? 'never' : 'must';
@@ -4702,17 +4709,27 @@ function genTableHtml(cfg, sol){
     }
     rows += `<tr class="${P.frozen ? 'frz' : (P.isNew ? 'newp' : '')}"><td class="nm" title="${genEsc(P.name)}">${genEsc(P.name)}${P.isNew ? '<span class="gen-newtag">novo</span>' : ''}</td>${cells}<td class="tot ${(!P.frozen && !P.isNew && count < cfg.rules.offs) ? 'bad' : ''}">${count}</td></tr>`;
   });
-  let foot = `<tr class="foot"><td class="nm">Folgam</td>`;
-  for(let d = 0; d < D; d++) foot += `<td class="${sol.load[d] > cfg.M ? 'over' : ''}">${sol.load[d]}</td>`;
+  // linha de baixo da tabela: quantas pessoas estão DISPONÍVEIS (trabalhando) em cada dia.
+  // Quem ainda não entrou na escala (entra no meio do mês) não conta antes do dia de início.
+  let foot = `<tr class="foot"><td class="nm">Disponíveis</td>`;
+  for(let d = 0; d < D; d++){
+    let avail = 0;
+    cfg.people.forEach((P, i) => {
+      if(P.isNew && d < (P.startDay || 0)) return;
+      if(!sol.offs[i][d]) avail++;
+    });
+    foot += `<td class="${sol.load[d] > cfg.M ? 'over' : ''}">${avail}</td>`;
+  }
   foot += `<td></td></tr>`;
   // linha extra: quantas pessoas da Limpeza estão de folga em cada dia
   const cIdx = cfg.cleanIdx || [];
   if(cIdx.length){
-    foot += `<tr class="foot clean"><td class="nm">Folga limp.</td>`;
+    foot += `<tr class="foot clean"><td class="nm">Disp. limp.</td>`;
     for(let d = 0; d < D; d++){
       const n = cIdx.reduce((acc, i) => acc + (sol.offs[i][d] ? 1 : 0), 0);
-      const low = (cIdx.length - n) < GEN_CLEAN_MIN;
-      foot += `<td class="${n ? 'cl-on' : 'cl-zero'} ${low ? 'cl-low' : ''}">${n}</td>`;
+      const avail = cIdx.length - n; // pessoas da Limpeza disponíveis no dia
+      const low = avail < GEN_CLEAN_MIN;
+      foot += `<td class="cl-on ${low ? 'cl-low' : ''}">${avail}</td>`;
     }
     foot += `<td></td></tr>`;
   }
@@ -5041,7 +5058,7 @@ function genBuildAppendConfig(){
   const mkNew = p => {
     const none = new Array(D).fill(false);
     return { id: p.id, name: p.name, forced: none.slice(), fixedMask: none.slice(), reqMask: none.slice(), forcedCount: 0, forcedSundays: 0,
-      sunRule: true, faMode: 'must', carryWork: 0, carrySun: 0, K: offsVal, isNew: true, startDay: startIdx };
+      sunRule: true, faMode: genIsNoFaPerson(p) ? 'free' : 'must', carryWork: 0, carrySun: 0, K: offsVal, isNew: true, startDay: startIdx };
   };
   const mkOld = p => {
     const forced = new Array(D).fill(false), req = new Array(D).fill(false);
