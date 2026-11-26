@@ -1921,8 +1921,10 @@ function toggleAbsence(personId, dateStr){
 // Horários conhecidos de cada código (escala de revezamento). Os que não aparecem aqui ficam sem horário.
 const SHIFT_TIMES = {
   A:'10:00–16:00', A1:'11:00–15:00', A2:'12:00–15:00', A3:'11:20–15:20', A10:'12:45–18:45',
-  B:'22:00–04:00', B1:'23:00–03:00', B2:'23:15–02:15', B3:'21:15–03:15', B4:'23:15–03:15', B25:'08:00–16:00'
+  B:'22:00–04:00', B1:'23:00–03:00', B2:'23:15–02:15', B3:'21:15–03:15', B4:'23:15–03:15'
 };
+// Únicos códigos de turno usados: aparecem nos seletores e são os reconhecidos na importação do PDF.
+const SHIFT_CODES = ['A','A1','A2','A3','A10','B','B1','B2','B3','B4'];
 // ---------- Código de turno (A, A1…A25 = dia · B, B1…B25 = noite) ----------
 // A pessoa continua TRABALHANDO nesse dia (não é folga e conta nos dias seguidos), só que num turno
 // diferente. Código B = turno da noite: ela não fica disponível para o turno do dia.
@@ -2418,10 +2420,9 @@ function renderShiftPicker(){
   document.getElementById('shiftTabA').classList.toggle('on', shiftSeries === 'A');
   document.getElementById('shiftTabB').classList.toggle('on', shiftSeries === 'B');
   let h = '';
-  for(let n = 0; n <= 25; n++){
-    const code = n === 0 ? shiftSeries : shiftSeries + n;
+  SHIFT_CODES.filter(code => code.charAt(0) === shiftSeries).forEach(code => {
     h += `<button data-code="${code}" class="${cur === code ? 'on' : ''}">${code}${SHIFT_TIMES[code] ? `<small>${SHIFT_TIMES[code]}</small>` : ''}</button>`;
-  }
+  });
   const grid = document.getElementById('shiftGrid');
   grid.innerHTML = h;
   grid.querySelectorAll('button').forEach(b=>{
@@ -2820,8 +2821,9 @@ document.getElementById('deletePersonBtn').addEventListener('click', ()=>{
 // Lê o PDF inteiramente no navegador (nenhum dado sai do celular), localiza a
 // linha de cabeçalho com os números dos dias (01, 02, 03...), localiza cada
 // colaborador pela matrícula e procura, na linha dele, células cujo texto seja
-// EXATAMENTE "F" (folga regulamentar) ou "FA" (folga agrupada). Qualquer outro
-// código (A9, B, J, CH, etc.) é deliberadamente ignorado.
+// EXATAMENTE "F" (folga regulamentar) ou "FA" (folga agrupada). Também reconhece os
+// códigos de turno (A, A1…A25 = dia · B, B1…B25 = noite) escritos nas células dos dias e
+// guarda cada um no dia e no colaborador certos. Qualquer outro texto (J, CH, etc.) é ignorado.
 const MONTH_NAMES_PT = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
 
 async function extractPdfTextItems(file){
@@ -2838,6 +2840,7 @@ async function extractPdfTextItems(file){
       items.push({
         text,
         x: it.transform[4],
+        w: it.width || 0,
         top: viewport.height - it.transform[5], // topo->baixo, igual pdfplumber
         page: pageNum
       });
@@ -2871,7 +2874,7 @@ function findDayHeaderRow(rows){
   rows.forEach(row=>{
     const nums = row.items
       .filter(it => /^\d{1,2}$/.test(it.text))
-      .map(it => ({ day: parseInt(it.text,10), x: it.x }))
+      .map(it => ({ day: parseInt(it.text,10), x: it.x, cx: it.x + (it.w || 0) / 2 }))
       .sort((a,b)=> a.x - b.x);
     if(nums.length < 15) return;
     // valida que forma uma sequência crescente 1,2,3... (permite pequenas falhas)
@@ -2896,8 +2899,34 @@ function detectMonthYear(items){
   return { month, year };
 }
 
+// Código de turno válido: A ou B, com número de 1 a 25 (aceita zero à esquerda: A01 vira A1).
+const SHIFT_CODE_RE = /^([AB])(?:0?([1-9])|(1\d|2[0-5]))?$/;
+function normalizeShiftCode(text){
+  const m = SHIFT_CODE_RE.exec(String(text == null ? '' : text).replace(/\s+/g, '').toUpperCase());
+  const code = m ? m[1] + (m[2] || m[3] || '') : null;
+  return code && SHIFT_CODES.includes(code) ? code : null;
+}
+// Alguns PDFs separam a letra e o número em dois pedaços de texto colados ("A" + "1"): junta os dois.
+function mergeSplitCodeItems(rowItems){
+  const sorted = [...rowItems].sort((a, b) => a.x - b.x);
+  const out = [];
+  for(let i = 0; i < sorted.length; i++){
+    const cur = sorted[i], nxt = sorted[i + 1];
+    if(nxt && /^[ABab]$/.test(cur.text) && /^\d{1,2}$/.test(nxt.text) && (cur.w || 0) > 0 && (nxt.x - (cur.x + cur.w)) <= 1.5){
+      out.push({ text: cur.text + nxt.text, x: cur.x, w: cur.w + (nxt.w || 0), top: cur.top, page: cur.page });
+      i++;
+    }else{
+      out.push(cur);
+    }
+  }
+  return out;
+}
+
 async function parseEscalaPdf(file){
   const items = await extractPdfTextItems(file);
+  return parseEscalaItems(items);
+}
+function parseEscalaItems(items){
   const rows = groupItemsIntoRows(items, 3);
   const headerInfo = findDayHeaderRow(rows);
   if(!headerInfo) throw new Error('Não encontrei a linha com os números dos dias (01, 02, 03...) nesse PDF.');
@@ -2936,13 +2965,15 @@ async function parseEscalaPdf(file){
       if(closest && closestDist <= tolerance) fDays.push(closest.day);
     });
     // códigos de turno (A, A1…A25 = dia · B, B1…B25 = noite) escritos nas células dos dias
+    // A coluna do dia é escolhida pelo CENTRO do texto (códigos de 1, 2 ou 3 caracteres têm larguras diferentes).
     const codes = {};
-    row.items.forEach(it=>{
-      const t = (it.text || '').trim().toUpperCase();
-      if(!/^[AB](?:[1-9]|1\d|2[0-5])?$/.test(t)) return;
+    mergeSplitCodeItems(row.items).forEach(it=>{
+      const t = normalizeShiftCode(it.text);
+      if(!t) return;
+      const cx = it.x + (it.w || 0) / 2;
       let closest = null, closestDist = Infinity;
       dayCols.forEach(dc=>{
-        const dist = Math.abs(dc.x - it.x);
+        const dist = Math.abs(dc.cx - cx);
         if(dist < closestDist){ closestDist = dist; closest = dc; }
       });
       if(closest && closestDist <= tolerance && !fDays.includes(closest.day)) codes[closest.day] = t;
@@ -5014,9 +5045,9 @@ function schedEditLegendHtml(){
 function schedCodeStripHtml(){
   const chip = (c) => `<button class="gen-code-chip ${c.charAt(0) === 'A' ? 'a' : 'b'} ${schedEdit.code === c ? 'on' : ''}" data-edcode="${c}">${c}<small>${SHIFT_TIMES[c] || '&nbsp;'}</small></button>`;
   let h = `<button class="gen-code-chip clr ${schedEdit.code === '' ? 'on' : ''}" data-edcode="">Tirar<small>&nbsp;</small></button><span class="gen-code-sep"></span>`;
-  ['A', 'B'].forEach(sr => {
-    for(let n = 0; n <= 25; n++) h += chip(n === 0 ? sr : sr + n);
-    if(sr === 'A') h += '<span class="gen-code-sep"></span>';
+  SHIFT_CODES.forEach((c, i) => {
+    if(i > 0 && c.charAt(0) !== SHIFT_CODES[i - 1].charAt(0)) h += '<span class="gen-code-sep"></span>';
+    h += chip(c);
   });
   return h;
 }
