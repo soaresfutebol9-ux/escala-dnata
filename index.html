@@ -1233,11 +1233,21 @@
   .gen-table tr.foot.clean td{ background: rgba(45,212,191,0.10); color: var(--c-limpeza); font-size: 12.5px; }
   /* fundo opaco (camada translúcida sobre a cor da superfície): os números que rolam por baixo não aparecem por cima do nome */
   .gen-table tr.foot.clean td.nm{ background: linear-gradient(rgba(45,212,191,0.16), rgba(45,212,191,0.16)), var(--surface-2); color: var(--c-limpeza); font-weight: 600; }
+  /* coluna do dia de hoje */
+  .gen-table td.c.today{ background: rgba(255,214,10,0.10); box-shadow: inset 1px 0 0 rgba(255,214,10,0.45), inset -1px 0 0 rgba(255,214,10,0.45); }
+  .gen-table th.dh.boost{ background: rgba(96,165,250,0.22); }
+  .gen-table th.dh.boost .dn{ color: #60A5FA; }
+  .gen-cal.boost button.on{ background: #60A5FA; border-color: #60A5FA; color: #0F1720; }
+  .gen-table th.dh.today{ background: rgba(255,214,10,0.20); box-shadow: inset 0 2px 0 var(--c-hoje); }
+  .gen-table th.dh.today .dn{ color: var(--c-hoje); }
+  .gen-table tr.foot td.today{ background: rgba(255,214,10,0.14); box-shadow: inset 1px 0 0 rgba(255,214,10,0.45), inset -1px 0 0 rgba(255,214,10,0.45); }
   .gen-table tr.foot.clean td.cl-zero{ opacity: .45; font-weight: 500; }
   .gen-table tr.foot.clean td.cl-low{ color: var(--c-falta); }
   .gen-legend{ display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 12px; font-size: 11.5px; color: var(--text-dim); }
   .gen-legend span{ display: inline-flex; align-items: center; gap: 6px; }
   .gen-legend i{ width: 12px; height: 12px; border-radius: 4px; display: inline-block; }
+  .gen-legend i.fnb{ width: 4px; height: 14px; border-radius: 2px; }
+  .gen-legend.fnleg{ margin-top: 12px; margin-bottom: -4px; }
 
 
   /* --- Opções de escala, diagnóstico e tela expandida --- */
@@ -1297,6 +1307,7 @@
 
   .gen-full{
     position:fixed; inset:0; z-index:80; background:var(--bg); overflow:hidden;
+    touch-action:none; overscroll-behavior:none; /* a tela expandida não rola/gira em nenhuma direção por conta própria */
     opacity:0; visibility:hidden; transform:scale(.97);
     transition:opacity .28s ease, transform .3s cubic-bezier(.2,.8,.2,1), visibility 0s linear .3s;
   }
@@ -1324,6 +1335,7 @@
   .gen-full.force-land .gen-full-hint{ max-height:0; opacity:0; padding-top:0; padding-bottom:0; margin-bottom:0; border-width:0; }
   .gen-full-host{
     flex:1; min-height:0; overflow:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain;
+    touch-action:none; /* o arrasto é tratado em JS, travado em um eixo só (sem diagonal) */
     border:1px solid var(--border); border-radius:12px; background:var(--surface);
     margin:0 calc(12px + env(safe-area-inset-right,0px)) 12px calc(12px + env(safe-area-inset-left,0px));
   }
@@ -1382,9 +1394,6 @@
       <button class="icon-btn" id="nextMonth">›</button>
     </div>
 
-    <div class="swipe-viewport" id="calViewport">
-      <div class="cal-grid" id="calGrid"></div>
-    </div>
     <div id="coverageConflictBanner"></div>
     <div class="cal-schedule" id="calSchedule"></div>
   </div>
@@ -1519,35 +1528,6 @@
   </div>
 </div>
 
-<!-- Off-days editor modal -->
-<div class="modal-overlay" id="offDaysModalOverlay">
-  <div class="modal">
-    <div class="off-days-head">
-      <h3 id="offDaysModalTitle">Editar folgas</h3>
-      <button class="edit-toggle-btn" id="offDaysEditToggle" title="Toque para ativar a edição">🔒</button>
-    </div>
-    <p class="mini-hint" id="offDaysHint">Toque no cadeado para ativar a edição antes de alterar os dias.</p>
-    <div class="mini-mode" id="miniMode">
-      <button type="button" data-mode="off" class="on">Folgas</button>
-      <button type="button" data-mode="shift">Turnos (A/B)</button>
-    </div>
-    <div class="mini-cal-head">
-      <button class="icon-btn-sm" id="miniPrev">‹</button>
-      <span id="miniMonthLabel">—</span>
-      <button class="icon-btn-sm" id="miniNext">›</button>
-    </div>
-    <div class="mini-grid" id="miniDowRow"></div>
-    <div class="mini-grid" id="miniGrid"></div>
-    <div class="mini-legend-codes"><span><b>F</b> folga</span><span><b style="color:var(--accent);">FA</b> folga agrupada</span><span><b style="color:#A78BFA;">A1, B2…</b> código de turno</span></div>
-    <div class="mini-legend-note" id="miniViolationLegend" style="display:none;">
-      <span class="mini-legend-dot"></span><span class="mini-legend-text"></span>
-    </div>
-    <div class="modal-actions">
-      <button class="btn-primary" id="closeOffDaysBtn" style="width:100%;">Concluído</button>
-    </div>
-  </div>
-</div>
-
 <!-- Gerador automático de escala -->
 <div class="modal-overlay" id="genOverlay">
   <div class="modal gen-modal" id="genModal">
@@ -1559,7 +1539,7 @@
         </div>
         <button class="icon-btn-sm" id="genCloseBtn" title="Fechar">✕</button>
       </div>
-      <div class="gen-progress" id="genProgress"><span></span><span></span><span></span><span></span><span></span></div>
+      <div class="gen-progress" id="genProgress"><span></span><span></span><span></span><span></span><span></span><span></span></div>
     </div>
     <div class="gen-body" id="genBody"></div>
     <div class="gen-foot" id="genFoot"></div>
@@ -1618,10 +1598,8 @@ const DEFAULT_STATE = { people: [], offDays: {}, requestedOffDays: {}, absences:
 // ---------- State ----------
 let state = Object.assign({}, DEFAULT_STATE);
 let calYear, calMonth; // 0-indexed month
-let miniYear, miniMonth;
 let editingPersonId = null;
 let importPrefillActive = false; // true enquanto o modal de pessoa foi aberto a partir da revisão de importação de PDF
-let offDaysPersonId = null;
 let sheetDateStr = null;
 
 const todayObj = new Date();
@@ -2082,6 +2060,19 @@ function personName(personId){
   const p = state.people.find(p=>p.id===personId);
   return p ? p.name : 'Essa pessoa';
 }
+// Quantas pessoas ficam disponíveis (e quantas da Limpeza) num dia, considerando quem está na escala do mês.
+// offPid: pessoa que está sendo marcada de folga agora (se ainda não estiver marcada), para prever o resultado.
+function dayAvailability(dateStr, offPid){
+  const y = parseInt(dateStr.slice(0,4),10), m = parseInt(dateStr.slice(5,7),10) - 1;
+  const roster = rosterPeopleFor(y, m);
+  const working = roster.filter(p => p.id !== offPid && !isOff(p.id, dateStr));
+  const clean = roster.filter(p => genGroupOf(p) === 'limpeza');
+  const cleanWorking = clean.filter(p => p.id !== offPid && !isOff(p.id, dateStr));
+  return { total: working.length, roster: roster.length, clean: cleanWorking.length, cleanRoster: clean.length };
+}
+function availText(a){
+  return `${a.total} disponíve${a.total === 1 ? 'l' : 'is'} no dia` + (a.cleanRoster ? ` (${a.clean} da Limpeza)` : '');
+}
 // Impede marcar uma folga que quebra uma restrição (ex.: os dois operadores juntos).
 // Devolve true se bloqueou (e já avisou na tela).
 function blockIfCoverageConflict(personId, dateStr){
@@ -2102,56 +2093,6 @@ function coverageConflictsFor(personId, dateStr){
 function renderCalendar(){
   renderCalSchedule();
   document.getElementById('monthLabel').textContent = `${capFirst(MONTHS[calMonth])} de ${calYear}`;
-  const grid = document.getElementById('calGrid');
-
-  if(!isMonthPublished(calYear, calMonth)){
-    grid.className = 'cal-grid-empty';
-    grid.innerHTML = `<div class="empty-state">
-      <div style="font-size:32px;">🗓️</div>
-      <p>${MONTHS[calMonth]} de ${calYear} ainda não tem escala criada.<br>Cada mês é independente — comece do zero por aqui.</p>
-      <button class="btn-primary" id="publishMonthBtn" style="margin-top:14px;">+ Criar escala deste mês</button>
-    </div>`;
-    document.getElementById('publishMonthBtn').addEventListener('click', ()=> publishMonth(calYear, calMonth));
-    renderCoverageConflictBanner();
-    return;
-  }
-  grid.className = 'cal-grid';
-
-  let html = '';
-  DOW.forEach(d => html += `<div class="cal-dow">${d}</div>`);
-
-  const firstDow = new Date(calYear, calMonth, 1).getDay();
-  const daysInMonth = new Date(calYear, calMonth+1, 0).getDate();
-  const todayStr = iso(todayObj.getFullYear(), todayObj.getMonth(), todayObj.getDate());
-
-  for(let i=0;i<firstDow;i++) html += `<div class="cal-day empty"></div>`;
-
-  for(let d=1; d<=daysInMonth; d++){
-    const dateStr = iso(calYear, calMonth, d);
-    const isToday = dateStr === todayStr;
-    const isPast = dateStr < todayStr;
-    let availableCount = 0;
-    rosterPeopleFor(calYear, calMonth).forEach(p=>{
-      if((p.functions||[]).some(fid => fid==='lider' || fid==='operador')) return; // líder e operador ficam disponíveis na lista do dia, mas não entram nessa contagem
-      const off = isOff(p.id, dateStr);
-      const absent = isAbsent(p.id, dateStr);
-      if(!off && !absent && !isNightShift(p.id, dateStr)) availableCount++;
-    });
-
-    html += `<div class="cal-day ${isToday?'today':''} ${isPast?'past-day':''}" data-date="${dateStr}">
-      <div class="top-row">
-        <span class="daynum">${d}</span>
-      </div>
-      <div class="bottom-row">
-        <span class="count-badge ${availableCount===0?'zero':''}">${availableCount}</span>
-      </div>
-    </div>`;
-  }
-
-  grid.innerHTML = html;
-  grid.querySelectorAll('.cal-day[data-date]').forEach(cell=>{
-    cell.addEventListener('click', ()=> openDaySheet(cell.dataset.date));
-  });
   renderCoverageConflictBanner();
 }
 
@@ -2223,7 +2164,7 @@ function stepMonth(direction){
 }
 
 function goCalendar(direction){
-  animateMonthChange(document.getElementById('calGrid'), direction, ()=>{
+  animateMonthChange(document.getElementById('calSchedule'), direction, ()=>{
     stepMonth(direction);
     renderCalendar();
   });
@@ -2424,9 +2365,6 @@ function renderDaySheet(dateStr){
       }
     });
   });
-  body.querySelectorAll('.clickable-name').forEach(el=>{
-    el.addEventListener('click', ()=> openOffDaysModal(el.dataset.pid));
-  });
 }
 
 // ---------- Seletor de código de turno ----------
@@ -2468,7 +2406,6 @@ function applyShiftCode(code){
   requestCloseOverlay('shiftOverlay');
   renderDaySheet(dateStr);
   renderCalendar();
-  if(document.getElementById('offDaysModalOverlay').classList.contains('active')) renderMiniCal();
   showToast(code ? `Turno ${code} marcado.` : 'Código removido.');
 }
 document.getElementById('shiftTabA').addEventListener('click', ()=>{ shiftSeries = 'A'; renderShiftPicker(); });
@@ -2569,13 +2506,9 @@ function renderEscalaList(){
       </div>
       <div class="actions">
         <button class="roster-toggle ${inRoster?'active':''}" data-roster="${p.id}">${inRoster ? 'Incluído ✓' : 'Incluir no mês'}</button>
-        <button class="btn-secondary" data-id="${p.id}" ${inRoster?'':'style="display:none;"'}>Editar folgas</button>
       </div>
     </div>`;
   }).join('');
-  list.querySelectorAll('button[data-id]').forEach(btn=>{
-    btn.addEventListener('click', ()=> openOffDaysModal(btn.dataset.id));
-  });
   list.querySelectorAll('button[data-roster]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const personId = btn.dataset.roster;
@@ -2837,258 +2770,6 @@ document.getElementById('deletePersonBtn').addEventListener('click', ()=>{
   renderCalendar();
   requestCloseOverlay('personModalOverlay');
   showToast('Pessoa removida.');
-});
-
-// ---------- Off-days modal ----------
-let offDaysEditUnlocked = false;
-let offDaysMode = 'off'; // 'off' = marcar folgas · 'shift' = marcar código de turno (A/B)
-
-function updateOffDaysEditUI(){
-  const btn = document.getElementById('offDaysEditToggle');
-  const hint = document.getElementById('offDaysHint');
-  const grid = document.getElementById('miniGrid');
-  if(offDaysEditUnlocked){
-    btn.classList.add('active');
-    btn.textContent = '✏️';
-    btn.title = 'Edição ativada — toque para bloquear novamente';
-    hint.textContent = offDaysMode === 'shift'
-      ? 'Edição ativada: toque num dia de trabalho para escolher o turno (A = dia, B = noite).'
-      : 'Edição ativada: toque nos dias para marcar ou desmarcar folga.';
-    grid.classList.remove('locked');
-  }else{
-    btn.classList.remove('active');
-    btn.textContent = '🔒';
-    btn.title = 'Toque para ativar a edição';
-    hint.textContent = 'Toque no cadeado para ativar a edição antes de alterar os dias.';
-    grid.classList.add('locked');
-  }
-}
-
-function openOffDaysModal(personId){
-  offDaysPersonId = personId;
-  offDaysEditUnlocked = false;
-  offDaysMode = 'off';
-  document.querySelectorAll('#miniMode button').forEach(b => b.classList.toggle('on', b.dataset.mode === 'off'));
-  const person = state.people.find(p=>p.id===personId);
-  document.getElementById('offDaysModalTitle').textContent = `Folgas de ${person.name}`;
-  miniYear = calYear; miniMonth = calMonth;
-  renderMiniDow();
-  renderMiniCal();
-  updateOffDaysEditUI();
-  document.getElementById('offDaysModalOverlay').classList.add('active');
-  pushOverlay('offDaysModalOverlay');
-}
-function closeOffDaysModal(){
-  document.getElementById('offDaysModalOverlay').classList.remove('active');
-  offDaysPersonId = null;
-  offDaysEditUnlocked = false;
-  renderCalendar();
-  renderEscalaList();
-}
-registerOverlay('offDaysModalOverlay', closeOffDaysModal);
-document.getElementById('closeOffDaysBtn').addEventListener('click', ()=> requestCloseOverlay('offDaysModalOverlay'));
-document.getElementById('offDaysModalOverlay').addEventListener('click', (e)=>{
-  if(e.target.id === 'offDaysModalOverlay') requestCloseOverlay('offDaysModalOverlay');
-});
-document.getElementById('miniMode').addEventListener('click', (e)=>{
-  const b = e.target.closest('button[data-mode]');
-  if(!b || b.dataset.mode === offDaysMode) return;
-  offDaysMode = b.dataset.mode;
-  document.querySelectorAll('#miniMode button').forEach(x => x.classList.toggle('on', x === b));
-  updateOffDaysEditUI();
-  renderMiniCal();
-});
-document.getElementById('offDaysEditToggle').addEventListener('click', ()=>{
-  offDaysEditUnlocked = !offDaysEditUnlocked;
-  updateOffDaysEditUI();
-  if(offDaysEditUnlocked) showToast('Edição ativada. Toque nos dias para alterar.');
-});
-
-function renderMiniDow(){
-  document.getElementById('miniDowRow').innerHTML = DOW.map(d=>`<div class="mini-dow">${d}</div>`).join('');
-}
-
-function renderMiniCal(){
-  document.getElementById('miniMonthLabel').textContent = `${MONTHS[miniMonth]} ${miniYear}`;
-  const grid = document.getElementById('miniGrid');
-  const firstDow = new Date(miniYear, miniMonth, 1).getDay();
-  const daysInMonth = new Date(miniYear, miniMonth+1, 0).getDate();
-  let html = '';
-  let violationCount = 0;
-  const conflictMsgs = [];
-  for(let i=0;i<firstDow;i++) html += `<div class="mini-day empty"></div>`;
-  const offArr = state.offDays[offDaysPersonId] || [];
-  const faSet = (()=>{
-    const a = [], dws = [];
-    for(let d = 1; d <= daysInMonth; d++){ a.push(offArr.includes(iso(miniYear, miniMonth, d))); dws.push(new Date(miniYear, miniMonth, d).getDay()); }
-    return new Set(genFaLabelDays(a, dws)); // índices (0-based) dos dias que levam o rótulo FA
-  })();
-  const countThisMonth = offDaysCountInMonth(offDaysPersonId, miniYear, miniMonth);
-  const atMax = countThisMonth >= MAX_OFF_DAYS_PER_MONTH;
-  const minOffs = minOffsFor(offDaysPersonId, miniYear, miniMonth);
-  const atMin = countThisMonth <= minOffs;
-  for(let d=1; d<=daysInMonth; d++){
-    const dateStr = iso(miniYear, miniMonth, d);
-    const off = offArr.includes(dateStr);
-    const requested = off && isRequestedOff(offDaysPersonId, dateStr);
-    let violation = false;
-    if(!off){
-      const streak = consecutiveWorkStreak(offDaysPersonId, dateStr);
-      if(streak && streak.length > MAX_CONSECUTIVE_WORK_DAYS){
-        const pos = positionInStreak(streak.start, dateStr);
-        violation = pos > MAX_CONSECUTIVE_WORK_DAYS; // só os dias "indevidos" (a partir do 7º)
-        if(violation) violationCount++;
-      }
-    }
-    const conflictIds = off ? coverageConflictsFor(offDaysPersonId, dateStr) : [];
-    const conflict = conflictIds.length > 0;
-    if(conflict) conflictMsgs.push(`dia ${d}: ${joinNamesPT(conflictIds)} também folga${conflictIds.length > 1 ? 'm' : ''}`);
-    const noToggle = offDaysMode === 'off' && (off ? atMin : atMax);
-    const code = off ? null : getShiftCode(offDaysPersonId, dateStr);
-    const isFa = off && faSet.has(d - 1);
-    const badge = off ? (isFa ? 'FA' : 'F') : (code || '');
-    const title = conflict ? `Conflito de restrição: ${joinNamesPT(conflictIds)} também ${conflictIds.length > 1 ? 'estão' : 'está'} de folga`
-      : requested ? `Folga desejada — solicitada pelo funcionário`
-      : violation ? `Dia além do limite de ${MAX_CONSECUTIVE_WORK_DAYS} dias seguidos`
-      : (noToggle ? (off ? `Mínimo de ${minOffs} folgas no mês` : `Máximo de ${MAX_OFF_DAYS_PER_MONTH} folgas no mês`) : '');
-    html += `<div class="mini-day ${off?'off':''} ${requested?'requested':''} ${violation?'violation':''} ${conflict?'conflict':''} ${noToggle?'no-toggle':''} ${code?'hascode':''} ${isFa?'fa':''}" data-date="${dateStr}" title="${conflict ? title : (code ? 'Turno ' + code : (isFa ? 'FA — folga agrupada' : title))}"><span class="mnum">${d}</span>${badge ? `<span class="${off ? 'mfl' : 'mcode'}">${badge}</span>` : ''}</div>`;
-  }
-  grid.innerHTML = html;
-
-
-  const legendEl = document.getElementById('miniViolationLegend');
-  if(violationCount || conflictMsgs.length){
-    const parts = [];
-    if(violationCount) parts.push(`${violationCount} dia${violationCount>1?'s':''} de trabalho além do limite de ${MAX_CONSECUTIVE_WORK_DAYS} seguidos (em vermelho)`);
-    if(conflictMsgs.length) parts.push(`Conflito de restrição (em vermelho): ${conflictMsgs.join('; ')}`);
-    legendEl.querySelector('.mini-legend-text').textContent = parts.join(' · ');
-    legendEl.style.display = 'flex';
-  }else{
-    legendEl.style.display = 'none';
-  }
-  if(!offDaysEditUnlocked) grid.classList.add('locked'); else grid.classList.remove('locked');
-  grid.querySelectorAll('.mini-day[data-date]').forEach(cell=>{
-    let pressTimer = null;
-    let longPressFired = false;
-
-    const cancelPress = ()=>{
-      if(pressTimer){ clearTimeout(pressTimer); pressTimer = null; }
-    };
-
-    const startPress = ()=>{
-      longPressFired = false;
-      cancelPress();
-      if(offDaysMode !== 'off') return;
-      pressTimer = setTimeout(()=>{
-        longPressFired = true;
-        pressTimer = null;
-        handleLongPress(cell.dataset.date);
-      }, 800);
-    };
-
-    cell.addEventListener('touchstart', startPress, { passive: true });
-    cell.addEventListener('touchend', cancelPress);
-    cell.addEventListener('touchmove', cancelPress);
-    cell.addEventListener('touchcancel', cancelPress);
-    cell.addEventListener('mousedown', startPress);
-    cell.addEventListener('mouseup', cancelPress);
-    cell.addEventListener('mouseleave', cancelPress);
-
-    cell.addEventListener('click', ()=>{
-      if(longPressFired){ longPressFired = false; return; } // o toque que finalizou o long-press não deve também disparar o toggle normal
-      if(!offDaysEditUnlocked){
-        showToast('Toque no 🔒 para ativar a edição.');
-        return;
-      }
-      if(offDaysMode === 'shift'){
-        const ds = cell.dataset.date;
-        if(isOff(offDaysPersonId, ds)){ showToast('Dia de folga não tem código de turno.'); return; }
-        openShiftPicker(offDaysPersonId, ds);
-        return;
-      }
-      const dateStr = cell.dataset.date;
-      const wasOff = isOff(offDaysPersonId, dateStr);
-      const wasRequested = wasOff && isRequestedOff(offDaysPersonId, dateStr);
-      if(wasRequested){
-        if(!confirm(`Remover a folga desejada de ${formatDateBR(dateStr)}?`)) return;
-      }
-      const countNow = offDaysCountInMonth(offDaysPersonId, miniYear, miniMonth);
-      if(!wasOff && countNow >= MAX_OFF_DAYS_PER_MONTH){
-        showToast(`Máximo de ${MAX_OFF_DAYS_PER_MONTH} folgas neste mês. Remova outra antes de adicionar.`);
-        return;
-      }
-      const minNow = minOffsFor(offDaysPersonId, miniYear, miniMonth);
-      if(wasOff && countNow <= minNow){
-        showToast(`Mínimo de ${minNow} folgas neste mês. Não é possível remover mais uma.`);
-        return;
-      }
-      if(!wasOff && blockIfCoverageConflict(offDaysPersonId, dateStr)) return;
-      toggleOffDay(offDaysPersonId, dateStr);
-      renderMiniCal();
-      if(wasOff){
-        // A folga foi removida — o dia virou dia de trabalho, então checamos a regra.
-        warnIfConsecutiveViolation(offDaysPersonId, dateStr, ()=>{
-          toggleOffDay(offDaysPersonId, dateStr); // desfaz: recoloca a folga
-          renderMiniCal();
-        });
-      }
-      renderCoverageConflictBanner();
-    });
-  });
-}
-
-// Segurar um dia por ~0,8s no mini-calendário de folgas para marcar/desmarcar
-// esse dia como "folga desejada" (pedida especificamente pelo funcionário).
-function handleLongPress(dateStr){
-  if(!offDaysEditUnlocked){
-    showToast('Toque no 🔒 para ativar a edição antes de marcar uma folga desejada.');
-    return;
-  }
-  const personId = offDaysPersonId;
-  const dateLabel = formatDateBR(dateStr);
-  const off = isOff(personId, dateStr);
-  const requested = off && isRequestedOff(personId, dateStr);
-
-  if(requested){
-    if(confirm(`Remover a marcação de folga desejada de ${dateLabel}?`)){
-      unmarkRequestedOff(personId, dateStr);
-      renderMiniCal();
-      showToast('Marcação removida.');
-    }
-    return;
-  }
-
-  if(off){
-    if(confirm(`Marcar ${dateLabel} como folga desejada?`)){
-      markRequestedOff(personId, dateStr);
-      renderMiniCal();
-      showToast('Folga desejada marcada.');
-    }
-    return;
-  }
-
-  // Dia ainda não é folga: perguntar se quer criar a folga já como desejada.
-  const countNow = offDaysCountInMonth(personId, miniYear, miniMonth);
-  if(countNow >= MAX_OFF_DAYS_PER_MONTH){
-    showToast(`Máximo de ${MAX_OFF_DAYS_PER_MONTH} folgas neste mês. Remova outra antes de adicionar.`);
-    return;
-  }
-  if(blockIfCoverageConflict(personId, dateStr)) return;
-  if(confirm(`Marcar ${dateLabel} como folga desejada?`)){
-    toggleOffDay(personId, dateStr);
-    markRequestedOff(personId, dateStr);
-    renderMiniCal();
-    renderCoverageConflictBanner();
-    showToast('Folga desejada marcada.');
-  }
-}
-document.getElementById('miniPrev').addEventListener('click', ()=>{
-  miniMonth--; if(miniMonth<0){ miniMonth=11; miniYear--; }
-  renderMiniCal();
-});
-document.getElementById('miniNext').addEventListener('click', ()=>{
-  miniMonth++; if(miniMonth>11){ miniMonth=0; miniYear++; }
-  renderMiniCal();
 });
 
 // ---------- Importar escala de um PDF (dnata) ----------
@@ -3906,15 +3587,18 @@ function genSolveOnce(cfg, rng){
     return g === 'operador' ? 'op' : (g === 'lider' ? 'lead' : null);
   });
   const regLoad = new Int32Array(D);
+  const isRamp = new Array(N).fill(false);
+  (cfg.rampIdx || []).forEach(i => { isRamp[i] = true; });
+  const rampOff = new Int32Array(D); // quantas pessoas das rampas estão de folga em cada dia
 
   function removePerson(i){
     const a = offs[i]; if(!a) return;
-    for(let d = 0; d < D; d++) if(a[d]){ load[d]--; if(!kindOf[i]) regLoad[d]--; if(isClean[i]) cleanOff[d]--; personGroups[i].forEach(g => groupCnt[g][d]--); }
+    for(let d = 0; d < D; d++) if(a[d]){ load[d]--; if(!kindOf[i]) regLoad[d]--; if(isClean[i]) cleanOff[d]--; if(isRamp[i]) rampOff[d]--; personGroups[i].forEach(g => groupCnt[g][d]--); }
     offs[i] = null;
   }
   function addPerson(i, a){
     offs[i] = a;
-    for(let d = 0; d < D; d++) if(a[d]){ load[d]++; if(!kindOf[i]) regLoad[d]++; if(isClean[i]) cleanOff[d]++; personGroups[i].forEach(g => groupCnt[g][d]++); }
+    for(let d = 0; d < D; d++) if(a[d]){ load[d]++; if(!kindOf[i]) regLoad[d]++; if(isClean[i]) cleanOff[d]++; if(isRamp[i]) rampOff[d]++; personGroups[i].forEach(g => groupCnt[g][d]++); }
   }
   // MODO RÍGIDO: usa só o nível 0 das regras (nada é afrouxado em silêncio).
   // Se a pessoa não tem padrão possível, devolve null e a geração é recusada.
@@ -3928,6 +3612,10 @@ function genSolveOnce(cfg, rng){
       const wt = (cfg.append || kindOf[i] === 'op') ? 400 : 10;
       let c = wt * (2 * lv + 1); // equilibra a carga entre os dias
       if(load[d] + 1 > cfg.M) c += 50000;             // passou do limite por dia
+      if(cfg.boost && cfg.boost[d] && isRamp[i]){      // dia de maior demanda: o mínimo de disponíveis nas rampas tem prioridade
+        c += 600;
+        if(rampOff[d] + 1 > cfg.boostMax[d]) c += 55000 * (rampOff[d] + 1 - cfg.boostMax[d]); // acima do limite por dia (50000), abaixo das restrições de grupo (60000)
+      }
       for(const g of personGroups[i]){
         c += 60000 * groupCnt[g][d]; // folgaria junto de alguém do grupo
         // Espaça as folgas do grupo: evita colar na folga de outra pessoa do mesmo grupo,
@@ -3988,6 +3676,10 @@ function genSolveOnce(cfg, rng){
       else if(avail > GEN_CLEAN_MIN) cleanPen += 40 * (avail - GEN_CLEAN_MIN);
     }
   }
+  let boostPen = 0;
+  if(cfg.boost){
+    for(let d = 0; d < D; d++) if(cfg.boost[d]) boostPen += 300 * rampOff[d] + 30000 * Math.max(0, rampOff[d] - cfg.boostMax[d]);
+  }
   let clash = 0;
   if(cfg.softGroups) genGroupClashes(cfg, offs).forEach(c => { clash += c.days.length; });
   // Cobertura das restrições: o ideal é sempre ter alguém do grupo de folga. Só conta como
@@ -4006,7 +3698,7 @@ function genSolveOnce(cfg, rng){
     }
     coverPen += 150 * run * run;
   });
-  return { offs, issues, clash, load: Array.from(load), cleanOff: Array.from(cleanOff), score: issues.length * 100000 + clash * 20000 + balance + cleanPen + coverPen };
+  return { offs, issues, clash, load: Array.from(load), cleanOff: Array.from(cleanOff), score: issues.length * 100000 + clash * 20000 + balance + cleanPen + coverPen + boostPen };
 }
 
 function genDiffCount(a, b){
@@ -4211,12 +3903,13 @@ const GEN_GROUP_ORDER = ['lider','operador','porao','limpeza','triagem'];
 const GEN_STEPS = [
   { eyebrow: 'Pessoas',      title: 'Quem entra na escala?' },
   { eyebrow: 'Pedidos',      title: 'Algum dia específico?' },
+  { eyebrow: 'Demanda',      title: 'Dias de maior demanda' },
   { eyebrow: 'Restrições',   title: 'Quem não pode folgar junto?' },
   { eyebrow: 'Regras',       title: 'Regras da escala' },
   { eyebrow: 'Resultado',    title: 'Escala gerada' }
 ];
 const GEN_DOW_LETTERS = ['D','S','T','Q','Q','S','S'];
-const GEN_STEP_RULES = 3, GEN_STEP_RESULT = 4;
+const GEN_STEP_RULES = 4, GEN_STEP_RESULT = 5;
 let gen = null; // estado do assistente (null = fechado)
 
 function genEsc(s){
@@ -4246,10 +3939,10 @@ function genSaveDraft(){
     const requests = {};
     Object.keys(gen.requests).forEach(pid => { requests[pid] = [...gen.requests[pid]]; });
     localStorage.setItem(GEN_DRAFT_KEY, JSON.stringify({
-      v: 3, savedAt: Date.now(),
+      v: 4, savedAt: Date.now(),
       step: Math.min(gen.step, GEN_STEP_RULES),
       year: gen.year, month: gen.month,
-      selected: [...gen.selected], requests,
+      selected: [...gen.selected], requests, boost: [...(gen.boost || [])], boostMax: gen.boostMax || {},
       savedOff: gen.savedOff,
       extraGroups: gen.extraGroups, rules: gen.rules
     }));
@@ -4260,7 +3953,7 @@ function genLoadDraft(){
     const raw = localStorage.getItem(GEN_DRAFT_KEY);
     if(!raw) return null;
     const d = JSON.parse(raw);
-    if(!d || (d.v !== 1 && d.v !== 2 && d.v !== 3) || !Number.isInteger(d.month) || !Number.isInteger(d.year)) return null;
+    if(!d || (d.v !== 1 && d.v !== 2 && d.v !== 3 && d.v !== 4) || !Number.isInteger(d.month) || !Number.isInteger(d.year)) return null;
     return d;
   }catch(e){ return null; }
 }
@@ -4276,6 +3969,10 @@ function genRestoreDraft(d){
     const days = (d.requests[pid] || []).filter(n => Number.isInteger(n));
     if(ids.has(pid) && days.length) gen.requests[pid] = new Set(days);
   });
+  const Dd = genDayInfo(d.year, d.month).D;
+  gen.boost = new Set((d.boost || []).filter(n => Number.isInteger(n) && n >= 1 && n <= Dd));
+  gen.boostMax = {};
+  Object.keys(d.boostMax || {}).forEach(k => { const day = parseInt(k, 10), v = d.boostMax[k]; if(gen.boost.has(day) && Number.isInteger(v) && v >= 0) gen.boostMax[day] = v; });
   gen.fixed = []; // o passo de folgas fixas foi removido: dias fixos são marcados em "Pedidos"
   genPrefillFa();
   gen.savedOff = d.savedOff || {};
@@ -4286,11 +3983,15 @@ function genRestoreDraft(d){
     maxSun: genClamp(r.maxSun || 5, 2, 8),
     maxPerDay: Number.isInteger(r.maxPerDay) ? Math.max(1, r.maxPerDay) : null
   };
-  // rascunhos antigos (v1) tinham o passo "Folgas fixas" no meio: reajusta o número do passo
+  gen.step = genDraftStep(d);
+}
+// rascunhos antigos têm outra numeração de passos: converte para a atual
+function genDraftStep(d){
   let st = d.step || 0;
-  if(d.v === 1 && st >= 2) st -= 1;
-  if(d.v < 3 && st >= 3) st -= 1; // o passo de FA foi removido
-  gen.step = genClamp(st, 0, GEN_STEP_RULES);
+  if(d.v === 1 && st >= 2) st -= 1;  // v1 tinha o passo "Folgas fixas" no meio
+  if(d.v < 3 && st >= 3) st -= 1;    // o passo de FA foi removido
+  if(d.v < 4 && st >= 2) st += 1;    // o passo "Reforço" entra depois de "Pedidos"
+  return genClamp(st, 0, GEN_STEP_RULES);
 }
 
 // ---- abrir / fechar ----
@@ -4303,7 +4004,7 @@ function genOpen(){
   gen = {
     step: 0, dir: 1, year: calYear, month: calMonth,
     selected: new Set(rosterIds.length ? rosterIds : state.people.map(p => p.id)),
-    requests: {}, fixed: [], faLast: new Set(), savedOff: {}, extraGroups: [], draft: null, openReq: null,
+    requests: {}, boost: new Set(), boostMax: {}, fixed: [], faLast: new Set(), savedOff: {}, extraGroups: [], draft: null, openReq: null,
     rules: { offs: 8, maxWork: 5, maxSun: 5, maxPerDay: null },
     result: null, runToken: 0,
     mode: 'full', appendSel: new Set(), appendStart: 1, appendOffs: null, appendM: null
@@ -4331,13 +4032,9 @@ registerOverlay('genOverlay', genClose);
 
 // Aproveita os "dias desejados" que já estão marcados no mês, se houver.
 function genPrefillRequests(){
+  // Uma nova escala sempre começa com os pedidos de dia específico zerados.
+  // (Ao continuar um rascunho, os pedidos voltam do próprio rascunho.)
   gen.requests = {};
-  const prefix = monthKey(gen.year, gen.month) + '-';
-  const req = state.requestedOffDays || {};
-  state.people.forEach(p => {
-    const days = (req[p.id] || []).filter(ds => ds.startsWith(prefix)).map(ds => parseInt(ds.slice(8), 10));
-    if(days.length) gen.requests[p.id] = new Set(days);
-  });
 }
 
 function genPrefillFa(){
@@ -4453,10 +4150,17 @@ function genBuildConfig(){
     };
   });
   const groups = genActiveGroups(ids).map(g => g.map(id => ids.indexOf(id)));
+  // Dias de maior demanda: nesses dias só pode folgar um número pequeno de pessoas das rampas
+  const boost = new Array(D).fill(false);
+  (gen.boost ? [...gen.boost] : []).forEach(day => { if(day >= 1 && day <= D) boost[day - 1] = true; });
+  const rampIds = new Set(genRampPeople().map(p => p.id));
+  const rampIdx = people.map((p, i) => rampIds.has(p.id) ? i : -1).filter(i => i >= 0);
+  const boostMax = boost.map((on, d) => on ? genBoostMaxFor(d + 1) : null); // teto de folgas (rampas) por dia marcado
   // Regra fixa: a equipe da Limpeza tenta manter pelo menos GEN_CLEAN_MIN disponíveis por dia
   const cleanIdx = people.map((p, i) => genGroupOf(p) === 'limpeza' ? i : -1).filter(i => i >= 0);
   return {
     year: gen.year, month: gen.month, D, dows, people: cfgPeople, groups, cleanIdx,
+    boost: boost.some(Boolean) ? boost : null, rampIdx, boostMax,
     W: GEN_MAX_WORK, SW: gen.rules.maxSun, M: genCurrentM(),
     rules: { offs: gen.rules.offs }, maxOffs: MAX_OFF_DAYS_PER_MONTH
   };
@@ -4512,7 +4216,7 @@ function genImpossibleHtml(){
 function genRenderResume(animate){
   const d = gen.resumePrompt;
   const when = new Date(d.savedAt || Date.now()).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-  const step = GEN_STEPS[genClamp((d.v < 3 && (d.step || 0) >= 3) ? d.step - 1 : (d.step || 0), 0, GEN_STEP_RULES)];
+  const step = GEN_STEPS[genDraftStep(d)];
   const n = (d.selected || []).filter(id => state.people.some(p => p.id === id)).length;
   document.getElementById('genModal').classList.remove('wide');
   document.getElementById('genEyebrow').textContent = 'Rascunho salvo';
@@ -4545,7 +4249,7 @@ function genRender(animate){
   document.getElementById('genEyebrow').textContent = `Passo ${gen.step + 1} de ${GEN_STEPS.length} · ${st.eyebrow}`;
   document.getElementById('genTitle').textContent = st.title;
   document.querySelectorAll('#genProgress span').forEach((el, i) => el.classList.toggle('done', i <= gen.step));
-  const builders = [genStep0, genStep1, genStep3, genStep4, genStep5];
+  const builders = [genStep0, genStep1, genStepBoost, genStep3, genStep4, genStep5];
   const body = document.getElementById('genBody');
   const cls = animate ? (gen.dir > 0 ? 'anim-fwd' : 'anim-back') : '';
   body.innerHTML = `<div class="gen-step ${cls}">${builders[gen.step]()}</div>`;
@@ -4662,7 +4366,110 @@ function genStep1(){
   return html;
 }
 
-// Passo 5 — restrições de "não folgar junto"
+// Passo 3 — dias de maior demanda (reforço de equipe)
+function genBoostCalHtml(D, dows){
+  let h = GEN_DOW_LETTERS.map(l => `<div class="dow">${l}</div>`).join('');
+  for(let i = 0; i < dows[0]; i++) h += `<div class="blank"></div>`;
+  for(let d = 1; d <= D; d++){
+    const dw = dows[d - 1];
+    h += `<button class="${dw === 0 || dw === 6 ? 'wk' : ''} ${gen.boost.has(d) ? 'on' : ''}" data-act="toggleBoostDay" data-day="${d}">${d}</button>`;
+  }
+  return `<div class="gen-cal boost">${h}</div>`;
+}
+// Rampas = Porão, Limpeza e Triagem. É delas que se conta o mínimo de pessoas disponíveis no dia.
+const GEN_RAMP_GROUPS = ['porao','limpeza','triagem'];
+function genRampPeople(){
+  const all = genSelectedPeople();
+  const r = all.filter(p => GEN_RAMP_GROUPS.includes(genGroupOf(p)));
+  return r.length ? r : all; // equipe sem funções cadastradas: conta todo mundo
+}
+// Teto de folgas (nas rampas) de cada dia de maior demanda. Padrão: 1. É um teto, não uma cota exata:
+// o gerador pode folgar menos gente se o cálculo permitir.
+function genBoostMaxFor(day){
+  const n = genRampPeople().length;
+  const v = gen.boostMax && Number.isInteger(gen.boostMax[day]) ? gen.boostMax[day] : 1;
+  return genClamp(v, 0, n);
+}
+function genBoostCfgHtml(){
+  if(!gen.boost.size) return '';
+  const { dows } = genDayInfo(gen.year, gen.month);
+  const n = genRampPeople().length;
+  const days = [...gen.boost].sort((a, b) => a - b);
+  let h = `<div class="gen-sec-title">Máximo de pessoas de folga em cada dia</div>
+    <p class="mini-hint" style="margin:0 0 6px;">É um teto: o gerador pode folgar menos gente se o cálculo permitir. Conta as rampas (Porão, Limpeza e Triagem), com ${n} pessoa${n === 1 ? '' : 's'} na escala.</p>`;
+  days.forEach(day => {
+    h += `<div class="gen-rule">
+      <div class="rtext"><div class="rtitle">Dia ${day} · ${DOW[dows[day - 1]]}</div></div>
+      <div class="gen-stepper">
+        <button data-act="boostStep" data-day="${day}" data-d="-1">−</button><span class="val">${genBoostMaxFor(day)}</span><button data-act="boostStep" data-day="${day}" data-d="1">+</button>
+      </div>
+    </div>`;
+  });
+  return h;
+}
+// Confere se os dias de maior demanda cabem junto com as restrições e com o limite de folgas por dia.
+// Devolve uma lista de avisos (vazia quando está tudo certo). É só aviso: não bloqueia a geração.
+function genBoostConflicts(){
+  if(!gen.boost || !gen.boost.size) return [];
+  const people = genSelectedPeople();
+  const N = people.length;
+  if(!N) return [];
+  const { D } = genDayInfo(gen.year, gen.month);
+  const K = gen.rules.offs, M = genCurrentM();
+  const rampIds = new Set(genRampPeople().map(p => p.id));
+  const nonRamp = people.filter(p => !rampIds.has(p.id)).length;
+  const days = [...gen.boost].filter(d => d >= 1 && d <= D);
+  if(!days.length) return [];
+  const nonBoost = D - days.length;
+  const capSum = days.reduce((a, d) => a + genBoostMaxFor(d), 0);
+  const out = [];
+  // 1) restrições: cada grupo precisa de um dia diferente para cada folga; o que não couber fora
+  //    dos dias de maior demanda é obrigado a cair neles
+  let forced = 0;
+  genActiveGroups(people.map(p => p.id)).forEach(g => {
+    const m = g.filter(id => rampIds.has(id)).length;
+    forced += Math.max(0, m * K - nonBoost);
+  });
+  if(forced > capSum){
+    out.push(`As restrições de "não folgar junto" obrigam pelo menos ${forced} folga${forced > 1 ? 's' : ''} nos dias de maior demanda, mas os tetos somam ${capSum}. Aumente os tetos, marque menos dias ou reduza as folgas por pessoa.`);
+  }
+  // 2) limite de pessoas de folga por dia: os demais dias precisam comportar o resto das folgas
+  const capacity = nonBoost * M + days.reduce((a, d) => a + Math.min(M, genBoostMaxFor(d) + nonRamp), 0);
+  if(N * K > capacity){
+    out.push(`Com no máximo ${M} pessoa${M > 1 ? 's' : ''} de folga por dia, não cabem as ${N * K} folgas do mês com esses tetos. Aumente o limite por dia ou os tetos, ou marque menos dias.`);
+  }
+  return out;
+}
+function genBoostWarnHtml(){
+  let list;
+  try{ list = genBoostConflicts(); }catch(e){ return ''; }
+  return list.map(t => `<div class="gen-warn-note" style="margin-bottom:10px;">⚠ <b>Dias de maior demanda</b>: ${genEsc(t)}</div>`).join('');
+}
+function genBoostSumHtml(){
+  const days = [...gen.boost].sort((a, b) => a - b);
+  if(!days.length) return 'Nenhum dia marcado. Se não há dias de maior demanda, é só continuar.';
+  let t = `<b>${days.length}</b> dia${days.length > 1 ? 's' : ''} de maior demanda: ${days.join(', ')}`;
+  // pedidos de folga nesses dias continuam valendo; avisa se passam do máximo permitido
+  const ramp = new Set(genRampPeople().map(p => p.id));
+  const over = [];
+  days.forEach(day => {
+    const maxOff = genBoostMaxFor(day);
+    const who = Object.keys(gen.requests).filter(pid => gen.selected.has(pid) && ramp.has(pid) && gen.requests[pid].has(day));
+    if(who.length > maxOff) over.push(`dia ${day}: ${who.length} pedido${who.length > 1 ? 's' : ''} de folga, teto de ${maxOff}`);
+  });
+  if(over.length) t += `<br><span style="color:#FBBF24;">Pedidos de folga acima do teto (serão mantidos): ${over.join('; ')}.</span>`;
+  return t;
+}
+function genStepBoost(){
+  const { D, dows } = genDayInfo(gen.year, gen.month);
+  return `<p class="gen-lead">Algum dia de <b>${genMonthName()}</b> exige <b>reforço de equipe</b>? Marque os dias de maior demanda. Depois defina quantas pessoas, no máximo, podem folgar em cada um. O gerador redistribui as folgas para os demais dias.</p>
+    ${genBoostCalHtml(D, dows)}
+    <div id="genBoostCfg">${genBoostCfgHtml()}</div>
+    <div id="genBoostWarn" style="margin-top:10px;">${genBoostWarnHtml()}</div>
+    <div class="gen-summary" id="genBoostSum">${genBoostSumHtml()}</div>`;
+}
+
+// Passo 4 — restrições de "não folgar junto"
 function genStep3(){
   const ids = genSelectedPeople().map(p => p.id);
   const nameOf = id => { const p = state.people.find(x => x.id === id); return p ? p.name : '?'; };
@@ -4717,7 +4524,7 @@ function genStep4(){
   const stepper = (key, val) => `<div class="gen-stepper">
       <button data-act="step" data-key="${key}" data-d="-1">−</button><span class="val">${val}</span><button data-act="step" data-key="${key}" data-d="1">+</button>
     </div>`;
-  return `${genImpossibleHtml()}
+  return `${genImpossibleHtml()}${genBoostWarnHtml()}
     <div class="gen-rule">
       <div class="rtext"><div class="rtitle">Folgas por pessoa</div><div class="rhint">Cada pessoa recebe exatamente esse número.</div></div>
       ${stepper('offs', r.offs)}
@@ -4731,9 +4538,11 @@ function genStep4(){
 function genTableHtml(cfg, sol){
   const { D, dows } = cfg;
   const faLabel = cfg.people.map((P, i) => genFaLabelDays(sol.offs[i], dows));
+  const tNow = new Date();
+  const todayIdx = (cfg.year === tNow.getFullYear() && cfg.month === tNow.getMonth()) ? tNow.getDate() - 1 : -1; // coluna do dia de hoje
   let head = `<th class="nm">Nome</th>`;
   for(let d = 1; d <= D; d++){
-    head += `<th class="dh ${(dows[d-1] === 0 || dows[d-1] === 6) ? 'wknd' : ''}"><span class="dn">${d}</span><span class="dw">${DOW[dows[d-1]].charAt(0)}</span></th>`;
+    head += `<th class="dh ${(dows[d-1] === 0 || dows[d-1] === 6) ? 'wknd' : ''} ${d - 1 === todayIdx ? 'today' : ''} ${(cfg.boost && cfg.boost[d-1]) ? 'boost' : ''}"><span class="dn">${d}</span><span class="dw">${DOW[dows[d-1]].charAt(0)}</span></th>`;
   }
   head += `<th class="tot">Fol.</th>`;
   let rows = '';
@@ -4747,7 +4556,7 @@ function genTableHtml(cfg, sol){
       const delay = Math.min(i * 24 + d * 7, 600);
       const editable = !P.frozen && !(P.isNew && d < (P.startDay || 0));
       const isSel = !!(gen && gen.sel && gen.sel.sol === sol && gen.sel.p === i && gen.sel.d === d);
-      cells += `<td class="c ${(dows[d] === 0 || dows[d] === 6) ? 'wknd' : ''} ${(P.isNew && d < (P.startDay || 0)) ? 'pre' : ''}"${editable ? ` data-p="${i}" data-d="${d}"` : ''}>${a[d] ? `<span class="gen-cell ${cls} ${isSel ? 'sel' : ''}" style="animation-delay:${delay}ms">${isFa ? 'FA' : 'F'}</span>` : ''}</td>`;
+      cells += `<td class="c ${(dows[d] === 0 || dows[d] === 6) ? 'wknd' : ''} ${d === todayIdx ? 'today' : ''} ${(P.isNew && d < (P.startDay || 0)) ? 'pre' : ''}"${editable ? ` data-p="${i}" data-d="${d}"` : ''}>${a[d] ? `<span class="gen-cell ${cls} ${isSel ? 'sel' : ''}" style="animation-delay:${delay}ms">${isFa ? 'FA' : 'F'}</span>` : ''}</td>`;
     }
     const fnPerson = (state.people || []).find(x => x.id === P.id);
     const fnDef = fnPerson ? fnById(genGroupOf(fnPerson)) : null;
@@ -4762,7 +4571,7 @@ function genTableHtml(cfg, sol){
       if(P.isNew && d < (P.startDay || 0)) return;
       if(!sol.offs[i][d]) avail++;
     });
-    foot += `<td class="${sol.load[d] > cfg.M ? 'over' : ''}">${avail}</td>`;
+    foot += `<td class="${sol.load[d] > cfg.M ? 'over' : ''} ${d === todayIdx ? 'today' : ''}">${avail}</td>`;
   }
   foot += `<td></td></tr>`;
   // linha extra: quantas pessoas da Limpeza estão de folga em cada dia
@@ -4773,14 +4582,19 @@ function genTableHtml(cfg, sol){
       const n = cIdx.reduce((acc, i) => acc + (sol.offs[i][d] ? 1 : 0), 0);
       const avail = cIdx.length - n; // pessoas da Limpeza disponíveis no dia
       const low = avail < GEN_CLEAN_MIN;
-      foot += `<td class="cl-on ${low ? 'cl-low' : ''}">${avail}</td>`;
+      foot += `<td class="cl-on ${low ? 'cl-low' : ''} ${d === todayIdx ? 'today' : ''}">${avail}</td>`;
     }
     foot += `<td></td></tr>`;
   }
   return `<table class="gen-table"><thead><tr>${head}</tr></thead><tbody>${rows}${foot}</tbody></table>`;
 }
+// Legenda das barrinhas coloridas ao lado do nome (uma cor por função)
+function genFnLegendHtml(){
+  const order = ['lider','operador','porao','limpeza','triagem'];
+  return `<div class="gen-legend fnleg">${order.map(id => { const f = fnById(id); return f ? `<span><i class="fnb" style="background:${f.color}"></i>${genEsc(f.name)}</span>` : ''; }).join('')}</div>`;
+}
 function genLegendHtml(){
-  return `<div class="gen-legend">
+  return genFnLegendHtml() + `<div class="gen-legend">
       <span><i style="background:var(--c-folga)"></i>Folga</span>
       <span><i style="background:var(--accent)"></i>FA (folga agrupada)</span>
       <span><i style="background:var(--c-desejada)"></i>Dia pedido</span>
@@ -4806,6 +4620,15 @@ function genOptionInner(i, noAnim){
       const daysTxt = days.map(d => `${d} (${already(d)} já folgava${already(d) === 1 ? '' : 'm'})`).join(', ');
       meta += `<div class="gen-opt-meta"><b>${genEsc(P.name)}</b>: folga nos dias ${daysTxt}${notes.length ? ' · ' + notes.join(', ') : ''}</div>`;
     });
+  }
+  if(cfg.boost){
+    // folgas nas rampas (Porão, Limpeza e Triagem) em cada dia de maior demanda, contra o teto escolhido
+    const ramp = cfg.rampIdx || [];
+    const offAt = d => ramp.reduce((n, k) => n + (sol.offs[k][d] ? 1 : 0), 0);
+    const bst = [];
+    for(let d = 0; d < cfg.D; d++) if(cfg.boost[d]) bst.push({ d: d + 1, off: offAt(d), max: cfg.boostMax[d] });
+    const miss = bst.filter(x => x.off > x.max);
+    meta += `<div class="gen-opt-meta" style="color:${miss.length ? '#FBBF24' : '#60A5FA'};">Dias de maior demanda (folgas nas rampas / teto): ${bst.map(x => `dia ${x.d}: ${x.off} de ${x.max}`).join(' · ')}${miss.length ? ' · teto ultrapassado por causa de pedidos de folga ou regras pessoais' : ''}</div>`;
   }
   const clashes = genGroupClashes(cfg, sol.offs);
   const verdict = clashes.length
@@ -5036,6 +4859,7 @@ function schedBuildTable(y, m){
   const offs = people.map(p => Array.from({ length: D }, (_, d) => isOff(p.id, iso(y, m, d + 1))));
   const load = Array.from({ length: D }, (_, d) => offs.reduce((n, a) => n + (a[d] ? 1 : 0), 0));
   const cfg = {
+    year: y, month: m,
     D, dows, rules: { offs: 0 }, M: Infinity,
     cleanIdx: people.map((p, i) => genGroupOf(p) === 'limpeza' ? i : -1).filter(i => i >= 0),
     people: people.map(p => ({
@@ -5048,10 +4872,22 @@ function schedBuildTable(y, m){
 function renderCalSchedule(){
   const host = document.getElementById('calSchedule');
   if(!host) return;
-  const t = isMonthPublished(calYear, calMonth) ? schedBuildTable(calYear, calMonth) : null;
-  if(!t){ host.innerHTML = ''; return; }
+  if(!isMonthPublished(calYear, calMonth)){
+    host.innerHTML = `<div class="empty-state">
+      <div style="font-size:32px;">🗓️</div>
+      <p>${MONTHS[calMonth]} de ${calYear} ainda não tem escala criada.<br>Cada mês é independente — comece do zero por aqui.</p>
+      <button class="btn-primary" id="publishMonthBtn" style="margin-top:14px;">+ Criar escala deste mês</button>
+    </div>`;
+    document.getElementById('publishMonthBtn').addEventListener('click', ()=> publishMonth(calYear, calMonth));
+    return;
+  }
+  const t = schedBuildTable(calYear, calMonth);
+  if(!t){
+    host.innerHTML = `<div class="empty-state"><p>Ninguém foi incluído na escala de ${MONTHS[calMonth]} ainda.<br>Vá na aba "Escala" e inclua sua equipe neste mês.</p></div>`;
+    return;
+  }
   host.innerHTML = `<div class="cal-sched-bar"><button class="gen-expand-btn edit" id="calSchedEdit" aria-label="Editar tabela de folgas" title="Editar">✏️ Editar</button><button class="gen-expand-btn sq" id="calSchedExpand" aria-label="Expandir tabela de folgas" title="Expandir">⤢</button></div>
-    <div class="gen-table-wrap noanim">${genTableHtml(t.cfg, t.sol)}</div>`;
+    <div class="gen-table-wrap noanim">${genTableHtml(t.cfg, t.sol)}</div>${genFnLegendHtml()}`;
   document.getElementById('calSchedEdit').addEventListener('click', schedOpenEdit);
   document.getElementById('calSchedExpand').addEventListener('click', () => {
     const y = calYear, m = calMonth;
@@ -5141,6 +4977,12 @@ function schedEditCellClick(e){
       genEditMsg(`Não pode: ${joinNamesPT(clash)} já ${clash.length > 1 ? 'estão' : 'está'} de folga em ${dlabel} (restrição de folga).`);
       return false;
     }
+    // aviso: a folga deixa a Limpeza abaixo do mínimo do dia? Pergunta antes de confirmar.
+    const a = dayAvailability(ds, pid);
+    const isClean = person && genGroupOf(person) === 'limpeza';
+    if(isClean && a.clean < GEN_CLEAN_MIN){
+      if(!confirm(`Com a folga de ${nm} em ${dlabel}, ficam só ${a.clean} da Limpeza disponíveis (o mínimo é ${GEN_CLEAN_MIN}). Marcar mesmo assim?`)) return false;
+    }
     return true;
   };
 
@@ -5154,7 +4996,7 @@ function schedEditCellClick(e){
       schedEdit.undo.push(rec);
       toggleOffDay(pid, ds);
       markRequestedOff(pid, ds);
-      genEditMsg(`Folga desejada criada · ${nm} · ${dlabel}`, true);
+      genEditMsg(`Folga desejada criada · ${nm} · ${dlabel} · ${availText(dayAvailability(ds))}`, true);
     }
     schedEditRefresh({ pid, d });
     return;
@@ -5180,7 +5022,7 @@ function schedEditCellClick(e){
     if(!checkAdd()) return;
     schedEdit.undo.push(rec);
     toggleOffDay(pid, ds);
-    genEditMsg(`Folga marcada · ${nm} · ${dlabel}`, true);
+    genEditMsg(`Folga marcada · ${nm} · ${dlabel} · ${availText(dayAvailability(ds))}`, true);
     schedEditRefresh({ pid, d });
   }
 }
@@ -5501,6 +5343,7 @@ function genGo(step, dir){
       gen.appendOffs = null;
     }else if(t.id === 'genMonth'){
       gen.month = parseInt(t.value, 10);
+      gen.boost = new Set(); gen.boostMax = {};
       genPrefillRequests();
       genPrefillFa();
       const sum = document.getElementById('genSum0'); if(sum) sum.innerHTML = genSum0Text();
@@ -5508,6 +5351,7 @@ function genGo(step, dir){
       const y = parseInt(t.value, 10);
       if(!Number.isInteger(y) || y < 2020 || y > 2100){ t.value = gen.year; showToast('Confira o ano.'); return; }
       gen.year = y;
+      gen.boost = new Set(); gen.boostMax = {};
       genPrefillRequests();
       genPrefillFa();
       const sum = document.getElementById('genSum0'); if(sum) sum.innerHTML = genSum0Text();
@@ -5555,6 +5399,23 @@ function genGo(step, dir){
       const badge = el.closest('.gen-acc').querySelector('.gen-badge');
       badge.textContent = set.size ? `${set.size} dia${set.size > 1 ? 's' : ''}` : 'nenhum';
       badge.classList.toggle('has', set.size > 0);
+    }
+    else if(act === 'toggleBoostDay'){
+      const day = parseInt(el.dataset.day, 10);
+      if(gen.boost.has(day)){ gen.boost.delete(day); delete gen.boostMax[day]; } else gen.boost.add(day);
+      el.classList.toggle('on', gen.boost.has(day));
+      const cfgEl = document.getElementById('genBoostCfg'); if(cfgEl) cfgEl.innerHTML = genBoostCfgHtml();
+      const warnEl = document.getElementById('genBoostWarn'); if(warnEl) warnEl.innerHTML = genBoostWarnHtml();
+      const sum = document.getElementById('genBoostSum'); if(sum) sum.innerHTML = genBoostSumHtml();
+      genSaveDraft();
+    }
+    else if(act === 'boostStep'){
+      const day = parseInt(el.dataset.day, 10);
+      gen.boostMax[day] = genClamp(genBoostMaxFor(day) + parseInt(el.dataset.d, 10), 0, genRampPeople().length);
+      const cfgEl = document.getElementById('genBoostCfg'); if(cfgEl) cfgEl.innerHTML = genBoostCfgHtml();
+      const warnEl = document.getElementById('genBoostWarn'); if(warnEl) warnEl.innerHTML = genBoostWarnHtml();
+      const sum = document.getElementById('genBoostSum'); if(sum) sum.innerHTML = genBoostSumHtml();
+      genSaveDraft();
     }
     else if(act === 'fixedAdd'){
       const people = genSelectedPeople();
@@ -5666,6 +5527,66 @@ function genGo(step, dir){
     genFullLayout();
   });
   document.getElementById('genFullHost').addEventListener('click', genCellClick);
+
+  // Tela expandida / edição: a tabela só rola para os lados OU para cima/baixo, nunca na diagonal.
+  // O primeiro movimento do dedo decide o eixo e ele fica travado até soltar. Mantém a inércia ao soltar.
+  (function wireFullAxisLock(){
+    const host = document.getElementById('genFullHost');
+    const full = document.getElementById('genFull');
+    let tracking = false, axis = null, sx = 0, sy = 0, lx = 0, ly = 0, lt = 0, vel = 0, raf = 0, suppressUntil = 0;
+    // em force-land a tela está girada 90°: troca os eixos do dedo pelos eixos da tabela
+    const toContent = (dx, dy) => full.classList.contains('force-land') ? { x: dy, y: -dx } : { x: dx, y: dy };
+    const stopInertia = () => { if(raf){ cancelAnimationFrame(raf); raf = 0; } };
+    const scrollBy = (a, amount) => { if(a === 'x') host.scrollLeft -= amount; else host.scrollTop -= amount; };
+
+    host.addEventListener('touchstart', (e) => {
+      stopInertia();
+      if(e.touches.length !== 1){ tracking = false; return; }
+      tracking = true; axis = null; vel = 0;
+      sx = lx = e.touches[0].clientX; sy = ly = e.touches[0].clientY; lt = e.timeStamp;
+    }, { passive: true });
+
+    host.addEventListener('touchmove', (e) => {
+      if(!tracking) return;
+      if(e.touches.length !== 1){ tracking = false; return; }
+      e.preventDefault();
+      const t = e.touches[0];
+      if(!axis){
+        const tot = toContent(t.clientX - sx, t.clientY - sy);
+        if(Math.max(Math.abs(tot.x), Math.abs(tot.y)) < 6) return; // ainda não decidiu
+        axis = Math.abs(tot.x) > Math.abs(tot.y) ? 'x' : 'y';
+        lx = sx; ly = sy; // conta o deslocamento desde o início do gesto
+      }
+      const d = toContent(t.clientX - lx, t.clientY - ly);
+      const amount = axis === 'x' ? d.x : d.y;
+      scrollBy(axis, amount);
+      const dt = Math.max(1, e.timeStamp - lt);
+      vel = 0.8 * vel + 0.2 * (amount / dt); // px por ms (suavizado)
+      lx = t.clientX; ly = t.clientY; lt = e.timeStamp;
+      suppressUntil = Date.now() + 350; // depois de arrastar, o toque não conta como clique numa célula
+    }, { passive: false });
+
+    const end = () => {
+      if(!tracking) return;
+      tracking = false;
+      const a = axis;
+      if(!a || Math.abs(vel) < 0.05) return;
+      let last = performance.now();
+      const step = (now) => {
+        const dt = now - last; last = now;
+        scrollBy(a, vel * dt);
+        vel *= Math.pow(0.995, dt); // atrito
+        if(Math.abs(vel) > 0.02) raf = requestAnimationFrame(step); else raf = 0;
+      };
+      raf = requestAnimationFrame(step);
+    };
+    host.addEventListener('touchend', end, { passive: true });
+    host.addEventListener('touchcancel', end, { passive: true });
+
+    host.addEventListener('click', (e) => {
+      if(Date.now() < suppressUntil){ e.stopPropagation(); e.preventDefault(); }
+    }, true);
+  })();
   document.getElementById('genFullTabs').addEventListener('click', (e) => {
     if(!schedEdit.active) return;
     const tool = e.target.closest('[data-edtool]');
@@ -5836,6 +5757,7 @@ XlsxSheet.prototype.xml = function(){
     rows[r].sort((a, b) => a.c - b.c).forEach(x => {
       const ref = xlsxCol(x.c) + (r + 1);
       if(x.v == null || x.v === '') sd += `<c r="${ref}" s="${x.s}"/>`;
+      else if(typeof x.v === 'object' && x.v.f) sd += `<c r="${ref}" s="${x.s}"><f>${xlsxEsc(x.v.f)}</f><v>${x.v.v}</v></c>`;
       else if(typeof x.v === 'number') sd += `<c r="${ref}" s="${x.s}"><v>${x.v}</v></c>`;
       else sd += `<c r="${ref}" s="${x.s}" t="inlineStr"><is><t xml:space="preserve">${xlsxEsc(x.v)}</t></is></c>`;
     });
@@ -5935,6 +5857,7 @@ function buildEscalaXlsx(year, month){
 
   // ---- linhas ----
   let r = 6;
+  const firstPersonRow = r;
   const blank = st.get({ sz: 8, h: 'center', bd: BD });
   const cellMatr = st.get({ sz: 8, fill: 'DDEBF7', h: 'center', bd: BD });
   const cellName = st.get({ sz: 8, fill: 'DDEBF7', h: 'left', bd: BD });
@@ -5958,7 +5881,9 @@ function buildEscalaXlsx(year, month){
         else if(inf.codes[d]) label = inf.codes[d];
         sh.put(r, c0 + d, label, dayStyle(dows[d]));
       }
-      sh.put(r, cF, inf.total, cellTot);
+      // total de folgas como fórmula: recalcula sozinho se você trocar um F por trabalho (e vice-versa)
+      const rowRng = `${xlsxCol(c0)}${r + 1}:${xlsxCol(c0 + D - 1)}${r + 1}`;
+      sh.put(r, cF, { f: `COUNTIF(${rowRng},"F")+COUNTIF(${rowRng},"FA")`, v: inf.total }, cellTot);
       sh.put(r, cH, null, blank);
       sh.put(r, cT, null, cellHor);
       r++;
@@ -5972,9 +5897,10 @@ function buildEscalaXlsx(year, month){
   for(let d = 0; d < D; d++){
     const n = roster.filter(p => info[p.id].offs[d]).length;
     sum += n;
-    sh.put(r, c0 + d, n, foot);
+    const colRng = `${xlsxCol(c0 + d)}${firstPersonRow + 1}:${xlsxCol(c0 + d)}${r}`; // linhas das pessoas, deste dia
+    sh.put(r, c0 + d, { f: `COUNTIF(${colRng},"F")+COUNTIF(${colRng},"FA")`, v: n }, foot);
   }
-  sh.put(r, cF, sum, foot);
+  sh.put(r, cF, { f: `SUM(${xlsxCol(c0)}${r + 1}:${xlsxCol(c0 + D - 1)}${r + 1})`, v: sum }, foot);
   sh.put(r, cH, null, foot);
   sh.put(r, cT, null, foot);
   sh.heights[r] = 16;
@@ -5987,7 +5913,7 @@ function buildEscalaXlsx(year, month){
   const files = [
     { name: '[Content_Types].xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>' },
     { name: '_rels/.rels', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${REL}/officeDocument" Target="xl/workbook.xml"/></Relationships>` },
-    { name: 'xl/workbook.xml', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="${NS}" xmlns:r="${REL}"><sheets><sheet name="${xlsxEsc(sheetName)}" sheetId="1" r:id="rId1"/></sheets></workbook>` },
+    { name: 'xl/workbook.xml', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="${NS}" xmlns:r="${REL}"><sheets><sheet name="${xlsxEsc(sheetName)}" sheetId="1" r:id="rId1"/></sheets><calcPr fullCalcOnLoad="1"/></workbook>` },
     { name: 'xl/_rels/workbook.xml.rels', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${REL}/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="${REL}/styles" Target="styles.xml"/></Relationships>` },
     { name: 'xl/styles.xml', data: st.xml() },
     { name: 'xl/worksheets/sheet1.xml', data: sh.xml() }
