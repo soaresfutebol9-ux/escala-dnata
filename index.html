@@ -2833,17 +2833,30 @@ async function extractPdfTextItems(file){
   for(let pageNum=1; pageNum<=pdf.numPages; pageNum++){
     const page = await pdf.getPage(pageNum);
     const viewport = page.getViewport({ scale: 1 });
-    const content = await page.getTextContent();
+    // disableCombineTextItems: o pdf.js não junta células vizinhas num texto só (ex.: "B4 B4 B4 F"),
+    // que fazia perder folgas e códigos quando as células ficam coladas no PDF.
+    const content = await page.getTextContent({ disableCombineTextItems: true });
     content.items.forEach(it=>{
-      const text = (it.str || '').trim();
+      const raw = it.str || '';
+      const text = raw.trim();
       if(!text) return;
-      items.push({
-        text,
-        x: it.transform[4],
-        w: it.width || 0,
-        top: viewport.height - it.transform[5], // topo->baixo, igual pdfplumber
-        page: pageNum
-      });
+      const x0 = it.transform[4], w0 = it.width || 0;
+      const top = viewport.height - it.transform[5]; // topo->baixo, igual pdfplumber
+      // Garantia extra: se mesmo assim vier "B4 F" num texto só, separa em um item por célula
+      // (só quando todas as partes são F, FA ou código de turno), com a posição proporcional.
+      const toks = text.split(/\s+/);
+      if(toks.length > 1 && w0 > 0 && toks.every(t => /^(F|FA|[ABab]\d{0,2})$/.test(t))){
+        const lead = raw.length - raw.replace(/^\s+/, '').length;
+        let pos = 0;
+        const full = raw.length || 1;
+        toks.forEach(t => {
+          const at = raw.indexOf(t, lead + pos);
+          items.push({ text: t, x: x0 + w0 * (at / full), w: w0 * (t.length / full), top, page: pageNum });
+          pos = (at - lead) + t.length;
+        });
+        return;
+      }
+      items.push({ text, x: x0, w: w0, top, page: pageNum });
     });
   }
   return items;
