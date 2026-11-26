@@ -1317,6 +1317,27 @@
     padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
   }
   .gen-full.force-land .gen-full-inner{ inset:auto; top:0; left:100%; transform-origin:0 0; transform:rotate(90deg); }
+  /* celular girado para o outro lado (sensor de inclinação): deita a escala no sentido contrário */
+  .shift-grid button small{ display:block; font-size:8.5px; font-weight:500; opacity:.8; line-height:1.2; }
+  /* faixa de códigos de turno (modo edição, ferramenta Código) */
+  .gen-code-strip{
+    display:none; flex-shrink:0; gap:6px; overflow-x:auto; scrollbar-width:none; touch-action:none;
+    margin:0 calc(12px + env(safe-area-inset-right,0px)) 8px calc(12px + env(safe-area-inset-left,0px)); padding:2px 0;
+  }
+  .gen-code-strip::-webkit-scrollbar{ display:none; }
+  .gen-full.coding .gen-code-strip{ display:flex; }
+  .gen-code-chip{
+    flex:0 0 auto; min-width:46px; background:var(--surface-2); border:1px solid var(--border); border-radius:10px;
+    font-family:'Inter',sans-serif; font-size:12.5px; font-weight:700; padding:5px 8px; line-height:1.15; text-align:center; cursor:pointer;
+  }
+  .gen-code-chip small{ display:block; font-size:9px; font-weight:500; color:var(--text-dim); margin-top:1px; }
+  .gen-code-chip.a{ color:#FBBF24; } .gen-code-chip.b{ color:#A78BFA; } .gen-code-chip.clr{ color:var(--c-falta); }
+  .gen-code-chip.on{ background:rgba(255,107,53,.16); border-color:var(--accent); }
+  .gen-code-sep{ flex:0 0 1px; background:var(--border); margin:2px 2px; }
+  .gen-code{ display:inline-block; min-width:20px; padding:1px 3px; border-radius:5px; font-size:9.5px; font-weight:700; line-height:1.3; }
+  .gen-code.a{ background:rgba(251,191,36,.18); color:#FBBF24; }
+  .gen-code.b{ background:rgba(167,139,250,.22); color:#A78BFA; }
+  .gen-full.force-land.ccw .gen-full-inner{ top:100%; left:0; transform-origin:0 0; transform:rotate(-90deg); }
   .gen-full-bar{
     display:flex; align-items:center; gap:10px; flex-shrink:0;
     padding:10px calc(14px + env(safe-area-inset-right,0px)) 8px calc(14px + env(safe-area-inset-left,0px));
@@ -1555,7 +1576,8 @@
       <button class="icon-btn-sm gen-rot-btn" id="genRotBtn" title="Girar tela" aria-label="Girar tela">⟳</button>
       <button class="icon-btn-sm" id="genFullClose" title="Fechar" aria-label="Fechar">✕</button>
     </div>
-    <div class="gen-full-hint" id="genFullHint">🔄 Gire o celular para ver a escala na horizontal</div>
+    <div class="gen-full-hint" id="genFullHint">Gire o celular para ver a escala na horizontal</div>
+    <div class="gen-code-strip" id="genCodeStrip"></div>
     <div class="gen-full-msg" id="genFullMsg"></div>
     <div class="gen-opt-host gen-full-host" id="genFullHost"></div>
   </div>
@@ -1725,6 +1747,23 @@ function sortPeopleEscala(list){
     return matriculaNum(a) - matriculaNum(b);
   });
 }
+// Ordem da tabela de folgas (tela principal): Líder, Operador, Triagem, Limpeza, Porão e, por fim,
+// o restante (sem função / outras). Dentro de cada função, por matrícula crescente.
+const TABELA_FN_ORDER = ['lider','operador','triagem','limpeza','porao'];
+function tabelaRank(p){
+  const fns = p.functions||[];
+  const i = TABELA_FN_ORDER.findIndex(id => fns.includes(id));
+  return i === -1 ? TABELA_FN_ORDER.length : i;
+}
+function sortPeopleTabela(list){
+  return [...list].sort((a,b)=>{
+    const ra = tabelaRank(a), rb = tabelaRank(b);
+    if(ra !== rb) return ra - rb;
+    const ma = matriculaNum(a), mb = matriculaNum(b);
+    if(ma !== mb) return ma - mb;
+    return (a.name||'').localeCompare(b.name||'', 'pt-BR', { sensitivity: 'base' });
+  });
+}
 function pad(n){ return n < 10 ? '0'+n : ''+n; }
 function iso(y,m,d){ return `${y}-${pad(m+1)}-${pad(d)}`; }
 function monthKey(y,m){ return `${y}-${pad(m+1)}`; }
@@ -1879,6 +1918,11 @@ function toggleAbsence(personId, dateStr){
   renderDaySheet(dateStr);
   renderCalendar();
 }
+// Horários conhecidos de cada código (escala de revezamento). Os que não aparecem aqui ficam sem horário.
+const SHIFT_TIMES = {
+  A:'10:00–16:00', A1:'11:00–15:00', A2:'12:00–15:00', A3:'11:20–15:20', A10:'12:45–18:45',
+  B:'22:00–04:00', B1:'23:00–03:00', B2:'23:15–02:15', B3:'21:15–03:15', B4:'23:15–03:15', B25:'08:00–16:00'
+};
 // ---------- Código de turno (A, A1…A25 = dia · B, B1…B25 = noite) ----------
 // A pessoa continua TRABALHANDO nesse dia (não é folga e conta nos dias seguidos), só que num turno
 // diferente. Código B = turno da noite: ela não fica disponível para o turno do dia.
@@ -2376,7 +2420,7 @@ function renderShiftPicker(){
   let h = '';
   for(let n = 0; n <= 25; n++){
     const code = n === 0 ? shiftSeries : shiftSeries + n;
-    h += `<button data-code="${code}" class="${cur === code ? 'on' : ''}">${code}</button>`;
+    h += `<button data-code="${code}" class="${cur === code ? 'on' : ''}">${code}${SHIFT_TIMES[code] ? `<small>${SHIFT_TIMES[code]}</small>` : ''}</button>`;
   }
   const grid = document.getElementById('shiftGrid');
   grid.innerHTML = h;
@@ -4535,6 +4579,11 @@ function genStep4(){
     </div>`;
 }
 
+// Código de turno (A…/B…) mostrado no dia de trabalho, quando a tabela traz os códigos (tela principal).
+function genCodeBadge(cfg, i, d){
+  const c = cfg.codes && cfg.codes[i] && cfg.codes[i][d];
+  return c ? `<span class="gen-code ${c.charAt(0) === 'B' ? 'b' : 'a'}" title="${genEsc(SHIFT_TIMES[c] || c)}">${genEsc(c)}</span>` : '';
+}
 function genTableHtml(cfg, sol){
   const { D, dows } = cfg;
   const faLabel = cfg.people.map((P, i) => genFaLabelDays(sol.offs[i], dows));
@@ -4556,7 +4605,7 @@ function genTableHtml(cfg, sol){
       const delay = Math.min(i * 24 + d * 7, 600);
       const editable = !P.frozen && !(P.isNew && d < (P.startDay || 0));
       const isSel = !!(gen && gen.sel && gen.sel.sol === sol && gen.sel.p === i && gen.sel.d === d);
-      cells += `<td class="c ${(dows[d] === 0 || dows[d] === 6) ? 'wknd' : ''} ${d === todayIdx ? 'today' : ''} ${(P.isNew && d < (P.startDay || 0)) ? 'pre' : ''}"${editable ? ` data-p="${i}" data-d="${d}"` : ''}>${a[d] ? `<span class="gen-cell ${cls} ${isSel ? 'sel' : ''}" style="animation-delay:${delay}ms">${isFa ? 'FA' : 'F'}</span>` : ''}</td>`;
+      cells += `<td class="c ${(dows[d] === 0 || dows[d] === 6) ? 'wknd' : ''} ${d === todayIdx ? 'today' : ''} ${(P.isNew && d < (P.startDay || 0)) ? 'pre' : ''}"${editable ? ` data-p="${i}" data-d="${d}"` : ''}>${a[d] ? `<span class="gen-cell ${cls} ${isSel ? 'sel' : ''}" style="animation-delay:${delay}ms">${isFa ? 'FA' : 'F'}</span>` : genCodeBadge(cfg, i, d)}</td>`;
     }
     const fnPerson = (state.people || []).find(x => x.id === P.id);
     const fnDef = fnPerson ? fnById(genGroupOf(fnPerson)) : null;
@@ -4564,10 +4613,18 @@ function genTableHtml(cfg, sol){
   });
   // linha de baixo da tabela: quantas pessoas estão DISPONÍVEIS (trabalhando) em cada dia.
   // Quem ainda não entrou na escala (entra no meio do mês) não conta antes do dia de início.
+  // Só contam as rampas (Triagem, Limpeza e Porão); Líder e Operador ficam de fora.
+  // Equipe sem nenhuma pessoa dessas funções: conta todo mundo.
+  const rampMask = cfg.people.map(P => {
+    const sp = (state.people || []).find(x => x.id === P.id);
+    return !!sp && GEN_RAMP_GROUPS.includes(genGroupOf(sp));
+  });
+  const countAll = !rampMask.some(Boolean);
   let foot = `<tr class="foot"><td class="nm">Disponíveis</td>`;
   for(let d = 0; d < D; d++){
     let avail = 0;
     cfg.people.forEach((P, i) => {
+      if(!countAll && !rampMask[i]) return;
       if(P.isNew && d < (P.startDay || 0)) return;
       if(!sol.offs[i][d]) avail++;
     });
@@ -4682,7 +4739,7 @@ function genStep5(){
   return `<div class="gen-opt-bar">
       <div class="gen-opt-tabs" id="genTabs">${genTabsHtml()}</div>
       <button class="gen-expand-btn" data-act="expand" aria-label="Expandir escala na horizontal">⤢ Expandir</button>
-      <button class="gen-expand-btn" data-act="expand" aria-label="Editar escala" title="Editar">✏️</button>
+      <button class="gen-expand-btn" data-act="expand" aria-label="Editar escala" title="Editar">Editar</button>
     </div>${note}
     <div class="gen-opt-host" id="genOptHost">${genOptionInner(r.active, !firstTime)}</div>`;
 }
@@ -4813,6 +4870,37 @@ function genFullLayout(){
   }
 }
 let genFullAuto = true; // true = em pé, a escala já abre deitada; o ⟳ desliga/liga isso
+
+// Sensor de inclinação: quando a janela fica travada em pé (o app não gira sozinho), a escala deita
+// para o lado certo conforme você gira o celular (horário ou anti-horário). Se o sistema girar de
+// verdade a tela, nada disso é usado (o resize cuida).
+let genTiltOn = false;
+function genTiltHandler(e){
+  const g = e.gamma, b = e.beta;
+  if(typeof g !== 'number') return;
+  if(typeof b === 'number' && Math.abs(b) > 75) return;   // celular em pé (retrato): ignora
+  const f = document.getElementById('genFull');
+  if(!f || !f.classList.contains('open') || !f.classList.contains('force-land')) return;
+  // gamma > 0: celular girado no sentido horário -> escala deita no sentido anti-horário (ccw)
+  if(g > 35 && !f.classList.contains('ccw')){ f.classList.add('ccw'); genFullLayout(); }
+  else if(g < -35 && f.classList.contains('ccw')){ f.classList.remove('ccw'); genFullLayout(); }
+}
+function genTiltStart(){
+  if(genTiltOn || typeof window.DeviceOrientationEvent === 'undefined') return;
+  const go = () => { if(genTiltOn) return; window.addEventListener('deviceorientation', genTiltHandler); genTiltOn = true; };
+  try{
+    if(typeof DeviceOrientationEvent.requestPermission === 'function'){ // iOS: pede permissão no toque
+      DeviceOrientationEvent.requestPermission().then(r => { if(r === 'granted') go(); }).catch(() => {});
+    }else{
+      go();
+    }
+  }catch(err){ console.error(err); }
+}
+function genTiltStop(){
+  if(!genTiltOn) return;
+  window.removeEventListener('deviceorientation', genTiltHandler);
+  genTiltOn = false;
+}
 function genOpenFull(){
   const r = gen && gen.result;
   if(!r || !r.options.length) return;
@@ -4827,7 +4915,10 @@ function openFullOverlay(title, tabsHtml, innerHtml){
   f.setAttribute('aria-hidden', 'false');
   genFullAuto = true;
   // celular em pé: já abre na horizontal (tela girada), sem precisar apertar nada
-  f.classList.toggle('force-land', window.innerHeight > window.innerWidth);
+  const portraitNow = window.innerHeight > window.innerWidth;
+  f.classList.remove('ccw');
+  f.classList.toggle('force-land', portraitNow);
+  if(portraitNow) genTiltStart(); // janela em pé: usa o sensor para saber para que lado deitar
   genFullLayout();
   pushOverlay('genFull');
   requestAnimationFrame(() => f.classList.add('open'));
@@ -4839,8 +4930,9 @@ function genFullClose(){
   genEditMsg('');
   const wasEditing = schedEdit.active;
   if(wasEditing){ schedEdit.active = false; schedEdit.undo = []; }
-  f.classList.remove('open', 'force-land', 'editing');
+  f.classList.remove('open', 'force-land', 'ccw', 'editing', 'coding');
   f.setAttribute('aria-hidden', 'true');
+  genTiltStop();
   genFullLayout();
   if(wasEditing){ try{ renderCalendar(); renderCalSchedule(); }catch(err){ console.error(err); } } // mostra na tela principal o que foi editado
 }
@@ -4851,7 +4943,7 @@ registerOverlay('genFull', genFullClose);
 // Mostra, abaixo do calendário, a escala do mês de todo mundo (mesma tabela do gerador).
 // O quadradinho abre a tela expandida, com a mesma animação.
 function schedBuildTable(y, m){
-  const people = sortPeople(rosterPeopleFor(y, m));
+  const people = sortPeopleTabela(rosterPeopleFor(y, m));
   if(!people.length) return null;
   const D = new Date(y, m + 1, 0).getDate();
   const dows = [];
@@ -4862,6 +4954,7 @@ function schedBuildTable(y, m){
     year: y, month: m,
     D, dows, rules: { offs: 0 }, M: Infinity,
     cleanIdx: people.map((p, i) => genGroupOf(p) === 'limpeza' ? i : -1).filter(i => i >= 0),
+    codes: people.map(p => Array.from({ length: D }, (_, d) => { const ds = iso(y, m, d + 1); return isOff(p.id, ds) ? null : getShiftCode(p.id, ds); })),
     people: people.map(p => ({
       id: p.id, name: p.name, frozen: false, isNew: false, startDay: 0, minOffs: minOffsFor(p.id, y, m),
       reqMask: Array.from({ length: D }, (_, d) => isRequestedOff(p.id, iso(y, m, d + 1)))
@@ -4886,7 +4979,7 @@ function renderCalSchedule(){
     host.innerHTML = `<div class="empty-state"><p>Ninguém foi incluído na escala de ${MONTHS[calMonth]} ainda.<br>Vá na aba "Escala" e inclua sua equipe neste mês.</p></div>`;
     return;
   }
-  host.innerHTML = `<div class="cal-sched-bar"><button class="gen-expand-btn edit" id="calSchedEdit" aria-label="Editar tabela de folgas" title="Editar">✏️ Editar</button><button class="gen-expand-btn sq" id="calSchedExpand" aria-label="Expandir tabela de folgas" title="Expandir">⤢</button></div>
+  host.innerHTML = `<div class="cal-sched-bar"><button class="gen-expand-btn edit" id="calSchedEdit" aria-label="Editar tabela de folgas" title="Editar">Editar</button><button class="gen-expand-btn sq" id="calSchedExpand" aria-label="Expandir tabela de folgas" title="Expandir">⤢</button></div>
     <div class="gen-table-wrap noanim">${genTableHtml(t.cfg, t.sol)}</div>${genFnLegendHtml()}`;
   document.getElementById('calSchedEdit').addEventListener('click', schedOpenEdit);
   document.getElementById('calSchedExpand').addEventListener('click', () => {
@@ -4901,18 +4994,42 @@ function renderCalSchedule(){
 // O botão ✏️ Editar abre a tabela já expandida, em modo de edição: toque num dia para marcar
 // ou tirar a folga, escolha a ferramenta (Folga / Desejada) e desfaça o que errar. Tudo salva
 // na hora, com as mesmas regras do editor por pessoa (8 a 9 folgas, restrições, dias seguidos).
-const schedEdit = { active: false, y: 0, m: 0, tool: 'off', undo: [] };
+const schedEdit = { active: false, y: 0, m: 0, tool: 'off', undo: [], code: null }; // code: null = nenhum escolhido · '' = tirar código
 
 function schedEditToolbarHtml(){
-  return `<button class="gen-opt-tab ${schedEdit.tool === 'off' ? 'on' : ''}" data-edtool="off">✋ Folga</button>
-    <button class="gen-opt-tab ${schedEdit.tool === 'req' ? 'on' : ''}" data-edtool="req">⭐ Desejada</button>
+  return `<button class="gen-opt-tab ${schedEdit.tool === 'off' ? 'on' : ''}" data-edtool="off">Folga</button>
+    <button class="gen-opt-tab ${schedEdit.tool === 'req' ? 'on' : ''}" data-edtool="req">Desejada</button>
+    <button class="gen-opt-tab ${schedEdit.tool === 'code' ? 'on' : ''}" data-edtool="code">Código</button>
     <button class="gen-opt-tab" id="schedUndoBtn" data-edundo="1" ${schedEdit.undo.length ? '' : 'disabled'}>↶ Desfazer</button>`;
 }
 function schedEditLegendHtml(){
-  const hint = schedEdit.tool === 'req'
+  const hint = schedEdit.tool === 'code'
+    ? 'Escolha um <b>código</b> na faixa de cima e toque nos dias de trabalho para marcar. Tocar de novo no mesmo código tira. Dia de folga não recebe código.'
+    : schedEdit.tool === 'req'
     ? 'Toque num dia para marcar ou tirar a marcação de <b>folga desejada</b>. Num dia vazio, cria a folga já como desejada.'
     : 'Toque num dia para <b>marcar</b> ou <b>tirar</b> a folga. As mudanças são salvas na hora.';
   return `<div class="gen-edit-hint">${hint}</div>${genLegendHtml()}`;
+}
+// Faixa de códigos de turno (aparece só com a ferramenta Código)
+function schedCodeStripHtml(){
+  const chip = (c) => `<button class="gen-code-chip ${c.charAt(0) === 'A' ? 'a' : 'b'} ${schedEdit.code === c ? 'on' : ''}" data-edcode="${c}">${c}<small>${SHIFT_TIMES[c] || '&nbsp;'}</small></button>`;
+  let h = `<button class="gen-code-chip clr ${schedEdit.code === '' ? 'on' : ''}" data-edcode="">Tirar<small>&nbsp;</small></button><span class="gen-code-sep"></span>`;
+  ['A', 'B'].forEach(sr => {
+    for(let n = 0; n <= 25; n++) h += chip(n === 0 ? sr : sr + n);
+    if(sr === 'A') h += '<span class="gen-code-sep"></span>';
+  });
+  return h;
+}
+function schedEditSyncStrip(){
+  const f = document.getElementById('genFull'), strip = document.getElementById('genCodeStrip');
+  if(!f || !strip) return;
+  const on = schedEdit.active && schedEdit.tool === 'code';
+  f.classList.toggle('coding', on);
+  if(on){
+    const keep = strip.scrollLeft;
+    strip.innerHTML = schedCodeStripHtml();
+    strip.scrollLeft = keep;
+  }
 }
 function schedEditBuild(){
   const t = schedBuildTable(schedEdit.y, schedEdit.m);
@@ -4921,14 +5038,15 @@ function schedEditBuild(){
 }
 function schedOpenEdit(){
   const y = calYear, m = calMonth;
-  schedEdit.y = y; schedEdit.m = m; schedEdit.tool = 'off'; schedEdit.undo = [];
+  schedEdit.y = y; schedEdit.m = m; schedEdit.tool = 'off'; schedEdit.undo = []; schedEdit.code = null;
   const t = schedEditBuild();
   if(!t) return;
   schedEdit.active = true;
   const f = document.getElementById('genFull');
   f.classList.add('editing');
-  openFullOverlay(`✏️ ${capFirst(MONTHS[m])} ${y}`, schedEditToolbarHtml(),
+  openFullOverlay(`${capFirst(MONTHS[m])} ${y}`, schedEditToolbarHtml(),
     `<div class="gen-table-wrap noanim">${genTableHtml(t.cfg, t.sol)}</div>${schedEditLegendHtml()}`);
+  schedEditSyncStrip();
   genEditMsg('Modo edição: toque num dia para marcar ou tirar a folga.', true);
 }
 function schedEditRefresh(flash){
@@ -4969,6 +5087,19 @@ function schedEditCellClick(e){
   const wasReq = wasOff && isRequestedOff(pid, ds);
   const cnt = offDaysCountInMonth(pid, y, m);
   const rec = { pid, ds, off: wasOff, req: wasReq, code: getShiftCode(pid, ds) };
+
+  if(schedEdit.tool === 'code'){
+    if(schedEdit.code === null){ genEditMsg('Escolha um código na faixa de cima e depois toque no dia.'); return; }
+    if(wasOff){ genEditMsg(`${nm} está de folga em ${dlabel}. Tire a folga antes de colocar um código.`); return; }
+    const cur = getShiftCode(pid, ds);
+    const want = schedEdit.code === '' ? null : (cur === schedEdit.code ? null : schedEdit.code);
+    if(want === cur){ genEditMsg(`${nm} já está sem código em ${dlabel}.`); return; }
+    schedEdit.undo.push({ kind: 'code', pid, ds, prev: cur });
+    setShiftCode(pid, ds, want);
+    genEditMsg(want ? `Código ${want}${SHIFT_TIMES[want] ? ' (' + SHIFT_TIMES[want] + ')' : ''} · ${nm} · ${dlabel}` : `Código removido · ${nm} · ${dlabel}`, true);
+    schedEditRefresh({ pid, d });
+    return;
+  }
 
   const checkAdd = () => {
     if(cnt >= MAX_OFF_DAYS_PER_MONTH){ genEditMsg(`${nm} já tem ${MAX_OFF_DAYS_PER_MONTH} folgas no mês (máximo). Tire outra antes de adicionar.`); return false; }
@@ -5029,6 +5160,13 @@ function schedEditCellClick(e){
 function schedEditUndo(){
   const r = schedEdit.undo.pop();
   if(!r) return;
+  if(r.kind === 'code'){
+    setShiftCode(r.pid, r.ds, r.prev || null);
+    const pp = state.people.find(x => x.id === r.pid);
+    genEditMsg(`Desfeito · ${pp ? pp.name : ''} · ${formatDateBR(r.ds)}`, true);
+    schedEditRefresh({ pid: r.pid, d: parseInt(r.ds.slice(8, 10), 10) - 1 });
+    return;
+  }
   if(!state.offDays[r.pid]) state.offDays[r.pid] = [];
   const arr = state.offDays[r.pid];
   const i = arr.indexOf(r.ds);
@@ -5535,7 +5673,9 @@ function genGo(step, dir){
     const full = document.getElementById('genFull');
     let tracking = false, axis = null, sx = 0, sy = 0, lx = 0, ly = 0, lt = 0, vel = 0, raf = 0, suppressUntil = 0;
     // em force-land a tela está girada 90°: troca os eixos do dedo pelos eixos da tabela
-    const toContent = (dx, dy) => full.classList.contains('force-land') ? { x: dy, y: -dx } : { x: dx, y: dy };
+    const toContent = (dx, dy) => full.classList.contains('force-land')
+      ? (full.classList.contains('ccw') ? { x: -dy, y: dx } : { x: dy, y: -dx })
+      : { x: dx, y: dy };
     const stopInertia = () => { if(raf){ cancelAnimationFrame(raf); raf = 0; } };
     const scrollBy = (a, amount) => { if(a === 'x') host.scrollLeft -= amount; else host.scrollTop -= amount; };
 
@@ -5587,10 +5727,39 @@ function genGo(step, dir){
       if(Date.now() < suppressUntil){ e.stopPropagation(); e.preventDefault(); }
     }, true);
   })();
+  (function wireCodeStrip(){
+    const strip = document.getElementById('genCodeStrip');
+    const full = document.getElementById('genFull');
+    let tracking = false, lx = 0, ly = 0, sx = 0, sy = 0, suppressUntil = 0;
+    // no modo girado, o eixo horizontal da faixa é o vertical (ou o inverso) do dedo
+    const toX = (dx, dy) => full.classList.contains('force-land') ? (full.classList.contains('ccw') ? -dy : dy) : dx;
+    strip.addEventListener('touchstart', (e) => {
+      tracking = e.touches.length === 1;
+      if(tracking){ sx = lx = e.touches[0].clientX; sy = ly = e.touches[0].clientY; }
+    }, { passive: true });
+    strip.addEventListener('touchmove', (e) => {
+      if(!tracking) return;
+      e.preventDefault();
+      const t = e.touches[0];
+      strip.scrollLeft -= toX(t.clientX - lx, t.clientY - ly);
+      lx = t.clientX; ly = t.clientY;
+      if(Math.abs(t.clientX - sx) + Math.abs(t.clientY - sy) > 8) suppressUntil = Date.now() + 300;
+    }, { passive: false });
+    strip.addEventListener('touchend', () => { tracking = false; }, { passive: true });
+    strip.addEventListener('touchcancel', () => { tracking = false; }, { passive: true });
+    strip.addEventListener('click', (e) => {
+      if(Date.now() < suppressUntil){ e.stopPropagation(); e.preventDefault(); return; }
+      const b = e.target.closest('[data-edcode]');
+      if(!b || !schedEdit.active) return;
+      schedEdit.code = b.dataset.edcode;
+      genEditMsg('');
+      schedEditSyncStrip();
+    });
+  })();
   document.getElementById('genFullTabs').addEventListener('click', (e) => {
     if(!schedEdit.active) return;
     const tool = e.target.closest('[data-edtool]');
-    if(tool){ schedEdit.tool = tool.dataset.edtool; genEditMsg(''); schedEditRefresh(); return; }
+    if(tool){ schedEdit.tool = tool.dataset.edtool; genEditMsg(''); schedEditSyncStrip(); schedEditRefresh(); return; }
     if(e.target.closest('[data-edundo]')) schedEditUndo();
   });
   f.addEventListener('click', (e) => {
@@ -5600,7 +5769,7 @@ function genGo(step, dir){
   window.addEventListener('resize', () => {
     if(!f.classList.contains('open')) return;
     const portrait = window.innerHeight > window.innerWidth;
-    if(!portrait) f.classList.remove('force-land');          // girou o aparelho: já está na horizontal de verdade
+    if(!portrait){ f.classList.remove('force-land', 'ccw'); } // girou o aparelho: já está na horizontal de verdade
     else if(genFullAuto) f.classList.add('force-land');      // voltou para em pé: deita a escala de novo
     genFullLayout();
   });
