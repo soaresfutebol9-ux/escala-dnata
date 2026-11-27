@@ -1069,6 +1069,26 @@
   .gen-code-chip.a{ color:#FBBF24; } .gen-code-chip.b{ color:#A78BFA; } .gen-code-chip.clr{ color:var(--c-falta); }
   .gen-code-chip.on{ background:rgba(255,107,53,.16); border-color:var(--accent); }
   .gen-code-sep{ flex:0 0 1px; background:var(--border); margin:2px 2px; }
+  .gen-table-wrap{ position:relative; }
+  .shift-bubble{
+    position:absolute; z-index:20; display:flex; align-items:center; gap:8px; white-space:nowrap;
+    padding:7px 11px; border-radius:10px; background:var(--surface-3); border:1px solid var(--border);
+    box-shadow:0 6px 18px rgba(0,0,0,.45); font-size:12.5px; line-height:1;
+    opacity:0; transform:translateY(4px) scale(.96); transition:opacity .14s ease, transform .14s ease;
+    pointer-events:none;
+  }
+  .shift-bubble.show{ opacity:1; transform:none; }
+  .shift-bubble.below{ transform:translateY(-4px) scale(.96); }
+  .shift-bubble.below.show{ transform:none; }
+  .shift-bubble::after{
+    content:''; position:absolute; left:var(--ax,50%); bottom:-5px; width:8px; height:8px; margin-left:-4px;
+    background:var(--surface-3); border-right:1px solid var(--border); border-bottom:1px solid var(--border);
+    transform:rotate(45deg);
+  }
+  .shift-bubble.below::after{ bottom:auto; top:-5px; transform:rotate(225deg); }
+  .shift-bubble .sb-code{ font-weight:800; font-family:'Space Grotesk',sans-serif; }
+  .shift-bubble.a .sb-code{ color:#FBBF24; } .shift-bubble.b .sb-code{ color:#A78BFA; }
+  .shift-bubble .sb-time{ font-weight:600; color:var(--text); }
   .gen-code{ cursor:pointer; display:inline-block; min-width:20px; padding:1px 3px; border-radius:5px; font-size:9.5px; font-weight:700; line-height:1.3; }
   .gen-code.a{ background:rgba(251,191,36,.18); color:#FBBF24; }
   .gen-code.b{ background:rgba(167,139,250,.22); color:#A78BFA; }
@@ -4513,19 +4533,53 @@ function genMoveProblems(sol, pi, from, to){
   }
   return problems;
 }
-// Toque num dia com código (A, B4…) fora do modo Editar: mostra o horário daquele código.
-// Na tela expandida usa a faixa de mensagem dela (gira junto); na tela principal, o aviso (toast).
+// Toque num dia com código (A, B4…) fora do modo Editar: abre um balãozinho colado no código com o horário.
+// O balão fica dentro da própria tabela (posição calculada sem depender da tela girada), então funciona
+// igual na tela principal e na expandida.
+function closeShiftBubble(){
+  document.querySelectorAll('.shift-bubble').forEach(b => { clearTimeout(b._t); b.remove(); });
+}
 function showShiftCodeInfo(e){
   const td = e.target.closest('td.c');
   const badge = td && td.querySelector('.gen-code');
   if(!badge) return false;
+  const wrap = td.closest('.gen-table-wrap');
+  const table = td.closest('table');
+  if(!wrap || !table) return false;
   const c = badge.textContent.trim();
-  const msg = `Código ${c} · ${SHIFT_TIMES[c] || 'horário não cadastrado'}`;
+  const same = wrap.querySelector('.shift-bubble[data-code-cell="' + td.dataset.p + '-' + td.dataset.d + '"]');
+  closeShiftBubble();
+  if(same) return true; // tocar de novo no mesmo código fecha o balão
+
+  const time = SHIFT_TIMES[c];
+  const b = document.createElement('div');
+  b.className = 'shift-bubble ' + (c.charAt(0) === 'B' ? 'b' : 'a');
+  b.dataset.codeCell = td.dataset.p + '-' + td.dataset.d;
+  b.innerHTML = '<span class="sb-code">' + genEsc(c) + '</span><span class="sb-time">' + genEsc(time || 'sem horário cadastrado') + '</span>';
+  wrap.appendChild(b);
+
   const full = document.getElementById('genFull');
-  if(full && full.classList.contains('open')) genEditMsg(msg, true);
-  else showToast(msg);
+  const scroller = (full && full.classList.contains('open')) ? document.getElementById('genFullHost') : wrap;
+  const cx = table.offsetLeft + td.offsetLeft + td.offsetWidth / 2;
+  const cellTop = table.offsetTop + td.offsetTop;
+  const bw = b.offsetWidth, bh = b.offsetHeight, gap = 7;
+  const minX = scroller.scrollLeft + 6, maxX = scroller.scrollLeft + scroller.clientWidth - 6;
+  let left = cx - bw / 2;
+  left = Math.max(minX, Math.min(left, maxX - bw));
+  let top = cellTop - bh - gap, below = false;
+  if(top < 2){ top = cellTop + td.offsetHeight + gap; below = true; }
+  b.style.left = left + 'px';
+  b.style.top = top + 'px';
+  b.style.setProperty('--ax', Math.max(10, Math.min(bw - 10, cx - left)) + 'px');
+  if(below) b.classList.add('below');
+  requestAnimationFrame(() => b.classList.add('show'));
+  b._t = setTimeout(closeShiftBubble, 3500);
   return true;
 }
+// qualquer toque fora de um código fecha o balão
+document.addEventListener('click', (e) => {
+  if(!e.target.closest('td.c') || !e.target.closest('td.c').querySelector('.gen-code')) closeShiftBubble();
+}, true);
 function genCellClick(e){
   if(schedEdit.active){ schedEditCellClick(e); return; }
   if(showShiftCodeInfo(e)) return;
